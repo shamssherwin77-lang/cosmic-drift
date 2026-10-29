@@ -86,7 +86,8 @@ test.describe('Android-style landscape touch input', () => {
     const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     await page.goto('/');
     await page.getByRole('button',{name:'Settings',exact:true}).tap();
-    await page.getByRole('combobox').selectOption('Low');
+    await expect(page.getByRole('combobox',{name:'Graphics quality'})).toHaveValue('Low');
+    await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');
     await page.getByRole('slider',{name:'Steering and mouse sensitivity'}).fill('0.8');
     await page.getByRole('slider',{name:'Touch sensitivity'}).fill('0.6');
     await page.getByLabel('Invert mouse horizontal axis',{exact:true}).check();
