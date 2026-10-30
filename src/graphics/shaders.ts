@@ -19,14 +19,15 @@ float fbm(vec3 p) {
 `;
 export const starVertex = /* glsl */`
 attribute float radius, temperature, identity;
-uniform vec3 offset, span;
+uniform vec3 offset, span, layoutOffset;
+uniform mat3 layoutRotation, destinationRotation;
 uniform float pixels, dpr, warmth, abundance;
 varying vec3 starColor;
 varying float visibility, glowWeight;
 void main(){
-  vec3 p=mod(position-offset+span*.5,span)-span*.5;
+  vec3 p=mod(layoutRotation*position+layoutOffset-offset+span*.5,span)-span*.5;
   float boundary=max(max(abs(p.x)/(span.x*.5),abs(p.y)/(span.y*.5)),abs(p.z)/(span.z*.5));
-  vec4 view=modelViewMatrix*vec4(p,1.);
+  vec4 view=modelViewMatrix*vec4(destinationRotation*p,1.);
   visibility=(1.-smoothstep(.78,1.,boundary))*smoothstep(12.,65.,length(p));
   visibility*=1.-smoothstep(abundance-.08,abundance,identity);
   starColor=mix(vec3(.62,.79,1.),vec3(1.,.97,.89),smoothstep(.1,.65,temperature));
@@ -37,7 +38,7 @@ void main(){
 }
 `;
 export const starFragment = /* glsl */`
-uniform float halo;
+uniform float halo,jumpAmount;
 varying vec3 starColor;
 varying float visibility, glowWeight;
 void main(){
@@ -45,7 +46,7 @@ void main(){
   float core=exp(-d*d*55.);
   float aura=exp(-d*d*5.5)*(.1+glowWeight*.17)*halo;
   float fade=1.-smoothstep(.8,1.,d);
-  gl_FragColor=vec4(starColor*(core*3.2+aura)*fade,visibility);
+  gl_FragColor=vec4(starColor*(core*3.2+aura)*fade,visibility*(1.-jumpAmount));
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -60,10 +61,11 @@ varying vec3 worldPoint;
 uniform vec3 center, radii, tint, second, accent;
 uniform float time, density, visibility, energy, seed, structure;
 uniform int steps, octaves;
+uniform mat3 volumeRotation;
 ${noise3D}
 void main(){
-  vec3 origin=(cameraPosition-center)/radii;
-  vec3 ray=normalize(worldPoint-cameraPosition)/radii;
+  vec3 origin=(volumeRotation*(cameraPosition-center))/radii;
+  vec3 ray=(volumeRotation*normalize(worldPoint-cameraPosition))/radii;
   float a=dot(ray,ray),b=dot(origin,ray),c=dot(origin,origin)-1.;
   float discriminant=b*b-a*c;
   if(discriminant<0.)discard;
@@ -101,10 +103,11 @@ export const skyFragment = /* glsl */`
 varying vec3 direction;
 uniform vec3 tint, second, accent;
 uniform float band, density, energy, bandWidth;
+uniform mat3 layoutRotation, destinationRotation, volumeRotation;
 uniform int octaves;
 ${noise3D}
 void main(){
-  vec3 d=normalize(direction);
+  vec3 d=normalize(layoutRotation*volumeRotation*direction);
   float n=fbm(d*4.+2.);
   float latitude=d.y*.88+d.x*.37+.09*sin(d.z*4.);
   float belt=exp(-pow(latitude/((.105+n*.16)*bandWidth),2.));

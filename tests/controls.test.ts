@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Euler, Vector3 } from 'three';
+import { LightJump } from '../src/light-jump.ts';
 import { advanceFlight, FrameBudget } from '../src/frame-budget.ts';
 import { FlightController, type ControlSettings } from '../src/controls.ts';
 
@@ -138,4 +139,16 @@ test('adaptive resolution has warm-up, bounded scale and resize hysteresis', () 
   for(let i=0;i<3600;i++)if(budget.observe(1/60,true,false))changes++;
   assert.ok(budget.scale>low && budget.scale<=1);assert.ok(changes<15);
   budget.reset();near(budget.scale,1);
+});
+
+test('Light Jump commits one different destination under cover and runs all phases',()=>{
+  const j=new LightJump();assert.ok(j.start(0,7123));assert.equal(j.destination,2);assert.notEqual(j.seed,7123);assert.equal(j.start(0,7123),false);
+  const phases=new Set([j.phase]);let commits=0,previous=0;
+  for(let i=0;i<660;i++){j.advance(1/60);phases.add(j.phase);assert.ok(Math.abs(j.energy-previous)<.04);previous=j.energy;if(j.justCommitted){commits++;assert.ok(j.veil>.98);}}
+  assert.equal(commits,1);assert.deepEqual([...phases],['charging','accelerating','transit','arriving','stabilized','idle']);assert.equal(j.energy,0);assert.equal(j.veil,0);assert.equal(j.busy,false);
+});
+test('Light Jump pause freezes its clock and repeated jumps never reuse a destination or seed',()=>{
+  const j=new LightJump();assert.equal(j.start(0,7123,true),false);j.start(0,7123);j.advance(.1);const elapsed=j.elapsed;j.advance(20,true);near(j.elapsed,elapsed);
+  let region=0,seed=7123;const seeds=new Set<number>();
+  for(let n=0;n<12;n++){if(j.busy)for(let i=0;i<120;i++)j.advance(.1);assert.ok(j.start(region,seed));assert.notEqual(j.destination,region);assert.ok(!seeds.has(j.seed));seeds.add(j.seed);region=j.destination;seed=j.seed;for(let i=0;i<120;i++)j.advance(.1);}
 });

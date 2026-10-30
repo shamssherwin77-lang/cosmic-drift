@@ -9,14 +9,14 @@ export function createSpace(scene: T.Scene) {
   const atmosphere = new T.Scene();
   const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, depthBuffer: false });
   const reprojection = new T.Matrix3();
-  const backdropUniforms = { sky: { value: target.texture }, reprojection: { value: reprojection }, tanHalf: { value: .6745 }, wideTanHalf: { value: .7554 }, aspect: { value: 1 } };
+  const backdropUniforms = { sky: { value: target.texture }, reprojection: { value: reprojection }, tanHalf: { value: .6745 }, wideTanHalf: { value: .7554 }, aspect: { value: 1 }, veil: { value: 0 }, jumpTint: { value: new T.Color('#92bce0') } };
   const backdrop = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({
     uniforms: backdropUniforms, depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 uvv;void main(){uvv=uv;gl_Position=vec4(position.xy,1.,1.);}',
-    fragmentShader: `varying vec2 uvv;uniform sampler2D sky;uniform mat3 reprojection;uniform float tanHalf,wideTanHalf,aspect;
+    fragmentShader: `varying vec2 uvv;uniform sampler2D sky;uniform mat3 reprojection;uniform float tanHalf,wideTanHalf,aspect,veil;uniform vec3 jumpTint;
       void main(){vec3 ray=reprojection*vec3((uvv-.5)*2.*tanHalf*vec2(aspect,1.),-1.);
       vec2 sampleUV=ray.xy/max(.001,-ray.z)/(2.*wideTanHalf*vec2(aspect,1.))+.5;
-      gl_FragColor=texture2D(sky,clamp(sampleUV,.001,.999));
+      gl_FragColor=texture2D(sky,clamp(sampleUV,.001,.999));gl_FragColor.rgb=mix(gl_FragColor.rgb,jumpTint*.38,veil*.985);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
       }`,
@@ -28,9 +28,11 @@ export function createSpace(scene: T.Scene) {
   const fieldPosition = new T.Vector3(), renderedPosition = new T.Vector3();
   let cacheDirty = true, renderedAt = -Infinity, interval = 1/24;
   const bodies = createBodies(scene);
+  const origin=new T.Vector3(),relativePosition=new T.Vector3(),orientation=new T.Quaternion(),inverseOrientation=new T.Quaternion();
+  const rotation=new T.Matrix3(),rotation4=new T.Matrix4(),destinationRotation=new T.Matrix3(),volumeRotation=new T.Matrix3();
   const palettes = regions.map(r => ({ tint: new T.Color(r.color), second: new T.Color(r.second), accent: new T.Color(r.accent) }));
   const shared = {
-    time: { value: 0 }, tint: { value: palettes[0].tint.clone() },
+    jumpAmount:{value:0},layoutRotation:{value:rotation},destinationRotation:{value:destinationRotation},volumeRotation:{value:volumeRotation},time: { value: 0 }, tint: { value: palettes[0].tint.clone() },
     second: { value: palettes[0].second.clone() }, accent: { value: palettes[0].accent.clone() },
     density: { value: Number(initial.density) }, band: { value: Number(initial.band) },
     warmth: { value: Number(initial.warmth) }, abundance: { value: initial.stars / 1.4 },
@@ -67,7 +69,7 @@ export function createSpace(scene: T.Scene) {
     geometry.setAttribute('temperature', new T.BufferAttribute(temperature, 1));
     geometry.setAttribute('identity', new T.BufferAttribute(identity, 1));
     const material = new T.ShaderMaterial({
-      uniforms: { ...shared, offset: { value: new T.Vector3() }, span: { value: span }, pixels: { value: 400 }, dpr: { value: 1 } },
+      uniforms: { ...shared, offset: { value: new T.Vector3() }, span: { value: span }, layoutOffset:{value:new T.Vector3()}, pixels: { value: 400 }, dpr: { value: 1 } },
       vertexShader: starVertex, fragmentShader: starFragment,
       transparent: true, depthWrite: false, blending: T.AdditiveBlending,
     });
@@ -91,6 +93,7 @@ export function createSpace(scene: T.Scene) {
     { center: new T.Vector3(-850, 220, -2400), radii: new T.Vector3(1200, 520, 1050) },
     { center: new T.Vector3(450, 420, 1200), radii: new T.Vector3(850, 600, 1000) },
   ];
+  const jitter=layouts.map(()=>new T.Vector3());
   const volumes = layouts.map((layout, i) => {
     const material = new T.ShaderMaterial({
       uniforms: { ...shared, center: { value: layout.center.clone() }, radii: { value: layout.radii },
@@ -108,6 +111,16 @@ export function createSpace(scene: T.Scene) {
 
   return {
     tint: shared.tint.value,
+    setJump(energy:number,veil:number){shared.jumpAmount.value=Math.max(energy,veil);backdropUniforms.veil.value=veil;backdropUniforms.jumpTint.value.copy(shared.tint.value).lerp(shared.accent.value,.35);bodies.setJump(Math.max(energy,veil));},
+    reseed(seed:number,region:number,position:T.Vector3,heading?:T.Quaternion){
+      origin.copy(position);heading?orientation.copy(heading):orientation.identity();inverseOrientation.copy(orientation).invert();destinationRotation.setFromMatrix4(rotation4.makeRotationFromQuaternion(orientation));volumeRotation.copy(destinationRotation).transpose();
+      for(const volume of volumes)volume.quaternion.copy(orientation);
+      let state=seed>>>0;const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+      rotation4.makeRotationY((random()-.5)*1.2);rotation4.multiply(new T.Matrix4().makeRotationZ((random()-.5)*.8));rotation.setFromMatrix4(rotation4);
+      for(const field of fields){const span=field.material.uniforms.span.value;field.material.uniforms.layoutOffset.value.set((random()-.5)*span.x,(random()-.5)*span.y,(random()-.5)*span.z);}
+      for(let i=0;i<volumes.length;i++){jitter[i].set((random()-.5)*600,(random()-.5)*250,(random()-.5)*500);volumes[i].material.uniforms.seed.value=random()*80+2;}
+      bodies.reseed(seed,region,position,orientation);cacheDirty=true;
+    },
     renderAtmosphere(renderer: T.WebGLRenderer, camera: T.Camera, force = false) {
       camera.updateWorldMatrix(true, false);
       camera.matrixWorld.decompose(cameraPosition,currentQ,cameraScale);
@@ -150,7 +163,7 @@ export function createSpace(scene: T.Scene) {
       volumes.forEach((volume, i) => { volume.visible = i < profile.volumes; volume.material.uniforms.steps.value = profile.steps; });
     },
     update(dt: number, time: number, region: number, position: T.Vector3, energy: number) {
-      fieldPosition.copy(position); bodies.update(dt,time,region,position);
+      relativePosition.copy(position).sub(origin).applyQuaternion(inverseOrientation);fieldPosition.copy(relativePosition); bodies.update(dt,time,region,position);
       const target = regions[region], palette = palettes[region], a = 1 - Math.exp(-dt * .55);
       shared.time.value = time;
       shared.tint.value.lerp(palette.tint, a); shared.second.value.lerp(palette.second, a); shared.accent.value.lerp(palette.accent, a);
@@ -161,17 +174,18 @@ export function createSpace(scene: T.Scene) {
       shared.warmth.value = T.MathUtils.lerp(shared.warmth.value, target.warmth, a);
       shared.abundance.value = T.MathUtils.lerp(shared.abundance.value, target.stars / 1.4, a);
       shared.energy.value = T.MathUtils.lerp(shared.energy.value, energy, a);
-      fields.forEach(field => field.material.uniforms.offset.value.copy(position));
+      fields.forEach(field => field.material.uniforms.offset.value.copy(relativePosition));
       volumes.forEach((volume, i) => {
         const base = layouts[i].center;
         // Recycle only at the far boundary; fade to zero before wrapping.
         volume.position.set(
-          T.MathUtils.euclideanModulo(base.x - position.x + 4600, 9200) - 4600,
-          T.MathUtils.euclideanModulo(base.y - position.y + 3600, 7200) - 3600,
-          T.MathUtils.euclideanModulo(base.z - position.z + 4600, 9200) - 4600,
+          T.MathUtils.euclideanModulo(base.x + jitter[i].x - relativePosition.x + 4600, 9200) - 4600,
+          T.MathUtils.euclideanModulo(base.y + jitter[i].y - relativePosition.y + 3600, 7200) - 3600,
+          T.MathUtils.euclideanModulo(base.z + jitter[i].z - relativePosition.z + 4600, 9200) - 4600,
         );
-        volume.material.uniforms.center.value.copy(volume.position);
         const edge = Math.max(Math.abs(volume.position.x) / 4600, Math.abs(volume.position.y) / 3600, Math.abs(volume.position.z) / 4600);
+        volume.position.applyQuaternion(orientation);
+        volume.material.uniforms.center.value.copy(volume.position);
         volume.material.uniforms.visibility.value = 1 - T.MathUtils.smoothstep(edge, .65, .95);
       });
 
