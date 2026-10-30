@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { createBodies } from './bodies';
 import { qualityProfiles, regions, type Quality } from './config';
 import { starVertex, starFragment, skyVertex, skyFragment, volumeVertex, volumeFragment } from './shaders';
 
@@ -7,9 +8,26 @@ export function createSpace(scene: T.Scene) {
   const initial = regions[0];
   const atmosphere = new T.Scene();
   const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, depthBuffer: false });
-  const backdrop = new T.Mesh(new T.PlaneGeometry(2, 2), new T.MeshBasicMaterial({ map: target.texture, depthTest: false, depthWrite: false }));
-  backdrop.material.onBeforeCompile = shader => { shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'gl_Position = vec4(position.xy, 1., 1.);'); };
+  const reprojection = new T.Matrix3();
+  const backdropUniforms = { sky: { value: target.texture }, reprojection: { value: reprojection }, tanHalf: { value: .6745 }, wideTanHalf: { value: .7554 }, aspect: { value: 1 } };
+  const backdrop = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({
+    uniforms: backdropUniforms, depthTest: false, depthWrite: false,
+    vertexShader: 'varying vec2 uvv;void main(){uvv=uv;gl_Position=vec4(position.xy,1.,1.);}',
+    fragmentShader: `varying vec2 uvv;uniform sampler2D sky;uniform mat3 reprojection;uniform float tanHalf,wideTanHalf,aspect;
+      void main(){vec3 ray=reprojection*vec3((uvv-.5)*2.*tanHalf*vec2(aspect,1.),-1.);
+      vec2 sampleUV=ray.xy/max(.001,-ray.z)/(2.*wideTanHalf*vec2(aspect,1.))+.5;
+      gl_FragColor=texture2D(sky,clamp(sampleUV,.001,.999));
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      }`,
+  }));
   backdrop.frustumCulled = false; backdrop.renderOrder = -10; scene.add(backdrop);
+  const atmosphereCamera = new T.PerspectiveCamera(75,1,.1,16000);
+  const currentQ = new T.Quaternion(), renderedQ = new T.Quaternion(), relativeQ = new T.Quaternion();
+  const cameraPosition = new T.Vector3(), cameraScale = new T.Vector3(), rotationMatrix = new T.Matrix4();
+  const fieldPosition = new T.Vector3(), renderedPosition = new T.Vector3();
+  let cacheDirty = true, renderedAt = -Infinity, interval = 1/24;
+  const bodies = createBodies(scene);
   const palettes = regions.map(r => ({ tint: new T.Color(r.color), second: new T.Color(r.second), accent: new T.Color(r.accent) }));
   const shared = {
     time: { value: 0 }, tint: { value: palettes[0].tint.clone() },
@@ -85,34 +103,43 @@ export function createSpace(scene: T.Scene) {
     atmosphere.add(mesh);
     return mesh;
   });
-  const planet = new T.Mesh(new T.SphereGeometry(75, 48, 32), new T.MeshStandardMaterial({
-    color: '#465571', roughness: .85, metalness: .1,
-  }));
-  const planetOrigin = new T.Vector3(680, -240, -1900);
-  planet.position.copy(planetOrigin); scene.add(planet);
   const hemisphere = new T.HemisphereLight('#b7c6ef', '#080e1d', 1.6); scene.add(hemisphere);
   const sun = new T.DirectionalLight('#dae6ff', 2.8); sun.position.set(-3, 4, 1); scene.add(sun);
 
   return {
     tint: shared.tint.value,
-    renderAtmosphere(renderer: T.WebGLRenderer, camera: T.Camera) {
+    renderAtmosphere(renderer: T.WebGLRenderer, camera: T.Camera, force = false) {
       camera.updateWorldMatrix(true, false);
-      const toneMapping = renderer.toneMapping;
-      renderer.toneMapping = T.NoToneMapping;
-      renderer.setRenderTarget(target); renderer.render(atmosphere, camera);
-      renderer.setRenderTarget(null); renderer.toneMapping = toneMapping;
+      camera.matrixWorld.decompose(cameraPosition,currentQ,cameraScale);
+      const perspective = camera as T.PerspectiveCamera;
+      const tanHalf = Math.tan(T.MathUtils.degToRad(perspective.fov)*.5);
+      if(backdropUniforms.aspect.value!==perspective.aspect || backdropUniforms.tanHalf.value!==tanHalf)cacheDirty=true;
+      backdropUniforms.tanHalf.value=tanHalf;backdropUniforms.wideTanHalf.value=tanHalf*1.12;backdropUniforms.aspect.value=perspective.aspect;
+      const now = performance.now()/1000;
+      // Wide-FOV history is reprojected at display rate, so free-look never waits for a cloud refresh.
+      if(force || cacheDirty || now-renderedAt>=interval || currentQ.angleTo(renderedQ)>.075 || fieldPosition.distanceToSquared(renderedPosition)>900){
+        atmosphereCamera.fov=T.MathUtils.radToDeg(2*Math.atan(tanHalf*1.12));atmosphereCamera.aspect=perspective.aspect;
+        atmosphereCamera.near=perspective.near;atmosphereCamera.far=perspective.far;atmosphereCamera.updateProjectionMatrix();
+        atmosphereCamera.position.copy(cameraPosition);atmosphereCamera.quaternion.copy(currentQ);
+        const toneMapping=renderer.toneMapping;renderer.toneMapping=T.NoToneMapping;
+        renderer.setRenderTarget(target);renderer.render(atmosphere,atmosphereCamera);
+        renderer.setRenderTarget(null);renderer.toneMapping=toneMapping;
+        renderedQ.copy(currentQ);renderedPosition.copy(fieldPosition);renderedAt=performance.now()/1000;cacheDirty=false;
+      }
+      relativeQ.copy(renderedQ).invert().multiply(currentQ);rotationMatrix.makeRotationFromQuaternion(relativeQ);reprojection.setFromMatrix4(rotationMatrix);
     },
     dispose() {
-      target.dispose();
+      target.dispose(); bodies.dispose();
       const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
       atmosphere.traverse(object => { if(object instanceof T.Mesh) { geometries.add(object.geometry); materials.add(object.material as T.Material); } });
       geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose());
     },
-    configure(quality: Quality, pixelRatio: number, width: number, height: number, bloom: number, hdr: boolean) {
-      const profile = qualityProfiles[quality]; shared.octaves.value = profile.octaves;
+    configure(quality: Quality, pixelRatio: number, width: number, height: number, bloom: number, hdr: boolean, performanceMode = false) {
+      cacheDirty = true; interval = performanceMode ? 1/15 : quality==='Low' ? 1/20 : quality==='Medium' ? 1/24 : 1/30;
+      const profile = qualityProfiles[quality]; bodies.configure(quality); shared.octaves.value = profile.octaves;
       const type = hdr && quality !== 'Low' ? T.HalfFloatType : T.UnsignedByteType;
       if (target.texture.type !== type) { target.dispose(); target.texture.type = type; }
-      target.setSize(Math.max(1, Math.round(width * pixelRatio * profile.cloudScale)), Math.max(1, Math.round(height * pixelRatio * profile.cloudScale)));
+      target.setSize(Math.max(1, Math.round(width * pixelRatio * (performanceMode ? .26 : profile.cloudScale))), Math.max(1, Math.round(height * pixelRatio * (performanceMode ? .26 : profile.cloudScale))));
       // Halos remain available on Low without a postprocessing render target.
       shared.halo.value = .75 + bloom * .8;
       fields.forEach((field, i) => {
@@ -123,6 +150,7 @@ export function createSpace(scene: T.Scene) {
       volumes.forEach((volume, i) => { volume.visible = i < profile.volumes; volume.material.uniforms.steps.value = profile.steps; });
     },
     update(dt: number, time: number, region: number, position: T.Vector3, energy: number) {
+      fieldPosition.copy(position); bodies.update(dt,time,region,position);
       const target = regions[region], palette = palettes[region], a = 1 - Math.exp(-dt * .55);
       shared.time.value = time;
       shared.tint.value.lerp(palette.tint, a); shared.second.value.lerp(palette.second, a); shared.accent.value.lerp(palette.accent, a);
@@ -146,9 +174,7 @@ export function createSpace(scene: T.Scene) {
         const edge = Math.max(Math.abs(volume.position.x) / 4600, Math.abs(volume.position.y) / 3600, Math.abs(volume.position.z) / 4600);
         volume.material.uniforms.visibility.value = 1 - T.MathUtils.smoothstep(edge, .65, .95);
       });
-      planet.position.copy(planetOrigin).sub(position);
-      // The distant body remains in every region; avoid an abrupt visibility switch.
-      planet.material.color.lerp(palette.second, a * .15);
+
     },
   };
 }

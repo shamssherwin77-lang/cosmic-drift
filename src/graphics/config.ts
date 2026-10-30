@@ -1,9 +1,9 @@
 export type Quality = 'Low' | 'Medium' | 'High';
 export type Lighting = 'Dark' | 'Balanced' | 'Cinematic';
 export const qualityProfiles = {
-  Low: { pixelRatio: 1, stars: [700, 3200, 11000], cloudScale: .4, volumes: 2, steps: 6, octaves: 2, bloom: false },
-  Medium: { pixelRatio: 1.25, stars: [1400, 6500, 26000], cloudScale: .5, volumes: 3, steps: 10, octaves: 3, bloom: true },
-  High: { pixelRatio: 1.6, stars: [2200, 10000, 48000], cloudScale: .65, volumes: 4, steps: 14, octaves: 4, bloom: true },
+  Low: { pixelRatio: .9, stars: [550, 2400, 7800], cloudScale: .32, volumes: 1, steps: 4, octaves: 2, bloom: false },
+  Medium: { pixelRatio: 1, stars: [1000, 4800, 19000], cloudScale: .4, volumes: 2, steps: 7, octaves: 2, bloom: false },
+  High: { pixelRatio: 1.35, stars: [2200, 10000, 48000], cloudScale: .5, volumes: 3, steps: 10, octaves: 3, bloom: true },
 } as const;
 export const lightingProfiles = {
   Dark: { exposure: .8, cabin: .7, nebula: .65 },
@@ -17,4 +17,4 @@ export const regions = [
   { name: 'Cosmic Clouds', subtitle: 'WHERE THE STARS ARE BORN', color: '#67cbbf', second: '#306c9c', accent: '#b1d5e8', density: 1.3, band: .5, structure: .65, bandWidth: 1.1, warmth: .16, stars: .7, exposure: 1 },
   { name: 'Deep Silence', subtitle: 'FAR FROM EVERYTHING', color: '#6d7fbb', second: '#253553', accent: '#a6b8e1', density: .12, band: .15, structure: .8, bandWidth: .45, warmth: .12, stars: .23, exposure: .84 },
 ] as const;
-export type GraphicsSettings = { quality: Quality; lighting: Lighting; bloom: number };
+export type GraphicsSettings = { quality: Quality; lighting: Lighting; bloom: number; performanceMode: boolean; adaptive: boolean };

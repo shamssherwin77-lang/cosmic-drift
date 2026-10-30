@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Euler, Vector3 } from 'three';
+import { advanceFlight, FrameBudget } from '../src/frame-budget.ts';
 import { FlightController, type ControlSettings } from '../src/controls.ts';
 
 const settings = (overrides: Partial<ControlSettings> = {}): ControlSettings => ({
@@ -112,4 +113,29 @@ test('opposing keys cancel and reversal cannot instantly flip angular velocity',
   const before=c.yawVelocity;c.key('KeyD',false);c.key('KeyA',true);c.step(1/60,settings());
   assert.ok(c.yawVelocity<0 && c.yawVelocity>before);
   advance(c,settings(),2);assert.ok(c.yawVelocity>0);
+});
+
+
+test('slow active frames integrate the full elapsed time without changing steering axes', () => {
+  const variable=pilot(),reference=pilot(),s=settings();variable.key('KeyD',true);reference.key('KeyD',true);
+  for(let i=0;i<20;i++)for(const dt of [.04,.18,.06,.22])advanceFlight(variable,dt,s);
+  advance(reference,s,10,60);
+  near(variable.speed,reference.speed);near(variable.yaw,reference.yaw);
+  assert.ok(variable.position.distanceTo(reference.position)<.1);
+});
+test('the frame scheduler rejects tab catch-up and keeps pause neutral', () => {
+  const c=pilot();advanceFlight(c,1/60,settings());const p=c.position.clone();
+  advanceFlight(c,30,settings());near(c.position.distanceTo(p),0);
+  c.key('KeyD',true);advanceFlight(c,.2,settings({paused:true}));assert.equal(c.keys.size,0);
+});
+test('adaptive resolution has warm-up, bounded scale and resize hysteresis', () => {
+  const budget=new FrameBudget();let changes=0;
+  for(let i=0;i<20;i++)budget.observe(.1,true,false);near(budget.scale,1);
+  for(let i=0;i<600;i++)if(budget.observe(.1,true,false))changes++;
+  assert.ok(budget.scale>=.6 && budget.scale<1);assert.ok(changes<=4);
+  const low=budget.scale;for(let i=0;i<100;i++)budget.observe(.1,true,true);near(budget.scale,low);
+  budget.observe(30,true,false);near(budget.scale,low);
+  for(let i=0;i<3600;i++)if(budget.observe(1/60,true,false))changes++;
+  assert.ok(budget.scale>low && budget.scale<=1);assert.ok(changes<15);
+  budget.reset();near(budget.scale,1);
 });

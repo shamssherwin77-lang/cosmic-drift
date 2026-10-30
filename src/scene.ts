@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { bindFlightInput, FlightController, type ControlSettings } from './controls';
+import { advanceFlight, FrameBudget } from './frame-budget';
 import { createSpace } from './graphics/space';
 import { createCockpit } from './graphics/cockpit';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
@@ -24,7 +25,8 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const space = createSpace(scene);
   const cockpit = createCockpit(ship);
   const input = bindFlightInput(renderer.domElement, joystick, controller, get);
-  const clock = new T.Clock();
+  const clock = new T.Clock(), budget = new FrameBudget();
+  let lastQuality = get().quality, lastPerformance = get().performanceMode, lastAdaptive = get().adaptive;
   let frame = 0, time = 0, pausedRenderTime = 0, configuration = '', disposed = false;
   let composer: EffectComposer | null = null, bloomPass: UnrealBloomPass | null = null;
   const disposeComposer = () => {
@@ -32,13 +34,13 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     composer.passes.forEach(pass => pass.dispose()); composer.dispose(); composer = null; bloomPass = null;
   };
   const configure = () => {
-    const s = get(), profile = qualityProfiles[s.quality];
+    const s = get(), effectiveQuality = s.performanceMode ? 'Low' : s.quality, profile = qualityProfiles[effectiveQuality];
     const width = Math.max(1, el.clientWidth), height = Math.max(1, el.clientHeight);
-    const ratio = Math.min(window.devicePixelRatio || 1, profile.pixelRatio);
+    const ratio = Math.min(window.devicePixelRatio || 1, profile.pixelRatio) * (s.performanceMode ? .85 : s.adaptive ? budget.scale : 1);
     renderer.setPixelRatio(ratio); renderer.setSize(width, height);
     camera.aspect = width / height; camera.updateProjectionMatrix();
     // Mobile Low uses shader halos and direct rendering, avoiding HDR targets.
-    const needsBloom = profile.bloom && s.bloom > 0 && renderer.extensions.has('EXT_color_buffer_float');
+    const needsBloom = !s.performanceMode && profile.bloom && s.bloom > 0 && renderer.extensions.has('EXT_color_buffer_float');
     if (needsBloom && !composer) {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
@@ -46,17 +48,24 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
       composer.addPass(bloomPass); composer.addPass(new OutputPass());
     } else if (!needsBloom) disposeComposer();
     if (composer) { composer.setPixelRatio(ratio); composer.setSize(width, height); }
-    space.configure(s.quality, ratio, width, height, s.bloom, renderer.extensions.has('EXT_color_buffer_float'));
-    configuration = `${s.quality}/${s.bloom}`;
+    space.configure(effectiveQuality, ratio, width, height, s.bloom, renderer.extensions.has('EXT_color_buffer_float'), s.performanceMode);
+    configuration = `${s.quality}/${s.bloom}/${s.performanceMode}/${s.adaptive}`;
   };
+  const visibility=()=>{clock.getDelta();controller.reset(true);};
+  document.addEventListener('visibilitychange',visibility);
   window.addEventListener('resize', configure); configure();
   const animate = () => {
     if (disposed) return;
     frame = requestAnimationFrame(animate);
-    const delta = clock.getDelta(), dt = delta > .25 ? 0 : Math.min(delta, .1), s = get();
+    const delta = clock.getDelta(), dt = delta > .25 ? 0 : delta, s = get();
+    if(document.hidden){controller.reset(true);return;}
     const graphicsDt = Math.min(delta, .25);
-    input.sync(); controller.step(dt, s);
-    if (configuration !== `${s.quality}/${s.bloom}`) configure();
+    input.sync(); advanceFlight(controller, delta, s);
+    if(s.quality!==lastQuality || s.performanceMode!==lastPerformance || s.adaptive!==lastAdaptive){
+      budget.reset();lastQuality=s.quality;lastPerformance=s.performanceMode;lastAdaptive=s.adaptive;
+    }
+    const resized=budget.observe(delta,s.adaptive && !s.performanceMode,s.paused);
+    if (configuration !== `${s.quality}/${s.bloom}/${s.performanceMode}/${s.adaptive}` || resized) configure();
     if (!s.paused) time += dt;
     const lighting = lightingProfiles[s.lighting];
     // Scene-guided exposure adapts gradually, never flashes at a region change.
@@ -74,7 +83,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   };
   animate();
   return () => {
-    disposed = true; cancelAnimationFrame(frame); input.dispose(); window.removeEventListener('resize', configure);
+    disposed = true; cancelAnimationFrame(frame); input.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
     disposeComposer(); cockpit.dispose(); space.dispose();
     const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
     scene.traverse(object => {

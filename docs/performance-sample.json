@@ -1,0 +1,48 @@
+{
+  "renderer": "Chromium / SwiftShader (software)",
+  "viewport": [
+    960,
+    540
+  ],
+  "warmup_ms": 1800,
+  "sample_ms": 5000,
+  "adaptive_enabled": true,
+  "baseline_source": "7bb8cb2",
+  "scope": "whole scene, changed quality budgets and enclosed cabin, not isolated shader timing",
+  "before": [
+    {
+      "quality": "Low",
+      "frames": 61,
+      "p50": 83.30000000000018,
+      "p95": 150,
+      "drawCallsMedian": 29,
+      "distance": 86.57071660963936
+    },
+    {
+      "quality": "Medium",
+      "frames": 22,
+      "p50": 233.30000000000018,
+      "p95": 415.0999999999999,
+      "drawCallsMedian": 44,
+      "distance": 17.7702476126068
+    }
+  ],
+  "after": [
+    {
+      "quality": "Low",
+      "frames": 106,
+      "p50": 50,
+      "p95": 99.89999999999964,
+      "drawCallsMedian": 19,
+      "distance": 96.5309099360807
+    },
+    {
+      "quality": "Medium",
+      "frames": 51,
+      "p50": 100,
+      "p95": 200,
+      "drawCallsMedian": 23,
+      "distance": 91.26736241691184
+    }
+  ]
+}
