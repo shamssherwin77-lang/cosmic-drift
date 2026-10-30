@@ -1,0 +1,18 @@
+[
+  {
+    "quality": "Low",
+    "frames": 106,
+    "p50": 50,
+    "p95": 99.89999999999964,
+    "drawCallsMedian": 19,
+    "distance": 96.5309099360807
+  },
+  {
+    "quality": "Medium",
+    "frames": 51,
+    "p50": 100,
+    "p95": 200,
+    "drawCallsMedian": 23,
+    "distance": 91.26736241691184
+  }
+]
