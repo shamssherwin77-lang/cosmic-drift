@@ -1,5 +1,5 @@
 import * as T from 'three';
-import { createBodies } from './bodies';
+import { createUniverse } from './universe';
 import { qualityProfiles, regions, type Quality } from './config';
 import { starVertex, starFragment, skyVertex, skyFragment, volumeVertex, volumeFragment } from './shaders';
 
@@ -27,7 +27,7 @@ export function createSpace(scene: T.Scene) {
   const cameraPosition = new T.Vector3(), cameraScale = new T.Vector3(), rotationMatrix = new T.Matrix4();
   const fieldPosition = new T.Vector3(), renderedPosition = new T.Vector3();
   let cacheDirty = true, renderedAt = -Infinity, interval = 1/24;
-  const bodies = createBodies(scene);
+  const bodies = createUniverse(scene);
   const origin=new T.Vector3(),relativePosition=new T.Vector3(),orientation=new T.Quaternion(),inverseOrientation=new T.Quaternion();
   const rotation=new T.Matrix3(),rotation4=new T.Matrix4(),destinationRotation=new T.Matrix3(),volumeRotation=new T.Matrix3();
   const palettes = regions.map(r => ({ tint: new T.Color(r.color), second: new T.Color(r.second), accent: new T.Color(r.accent) }));
@@ -119,7 +119,7 @@ export function createSpace(scene: T.Scene) {
       rotation4.makeRotationY((random()-.5)*1.2);rotation4.multiply(new T.Matrix4().makeRotationZ((random()-.5)*.8));rotation.setFromMatrix4(rotation4);
       for(const field of fields){const span=field.material.uniforms.span.value;field.material.uniforms.layoutOffset.value.set((random()-.5)*span.x,(random()-.5)*span.y,(random()-.5)*span.z);}
       for(let i=0;i<volumes.length;i++){jitter[i].set((random()-.5)*600,(random()-.5)*250,(random()-.5)*500);volumes[i].material.uniforms.seed.value=random()*80+2;}
-      bodies.reseed(seed,region,position,orientation);cacheDirty=true;
+      cacheDirty=true;
     },
     renderAtmosphere(renderer: T.WebGLRenderer, camera: T.Camera, force = false) {
       camera.updateWorldMatrix(true, false);

@@ -85,3 +85,24 @@ npm run build -- --base=/cosmic-drift/
 دکمهٔ **Light Jump** در نوار اصلی یا کلید **J** یک سفر سینمایی حدود ۱۰ ثانیه‌ای به منطقه‌ای متفاوت آغاز می‌کند. در طول پرش، هدایت دستی موقتاً قفل است؛ Pause/Resume و تنظیم کیفیت و صدا کار می‌کنند. پس از رسیدن، حالت و سرعت درخواستی قبلی بازمی‌گردند. روی گوشی دکمه را لمس کنید؛ Reduced Motion افکت آرام‌تری دارد. صدا تنها با فعال‌کردن صدای برنامه پخش می‌شود.
 
 مقصد seed و چیدمان تازه دارد و فقط تغییر یک برچسب نیست. جزئیات و محدودیت‌های تست در [راهنمای Light Jump](docs/light-jump.md) آمده‌اند. پیش‌نمایش مستقل در زیرمسیر `/cosmic-drift/previews/light-jump/` آماده می‌شود.
+
+### Continuous universe
+
+Based on `feat/light-jump` (`b75dad7`). Flight now streams a deterministic 3D
+neighborhood of 27 planetary systems, with a fixed GPU resource pool. Sector
+coordinates determine their seed, palette, orientation, planets, rings and moons;
+returning after eviction recreates the same landmarks. Region selections and Light
+Jump continue to change the atmosphere without moving or replacing planets.
+Bodies fade only at the streaming horizon (10,000–13,000 world units) or inside
+surfaces. The decorative GPU star field and nebula retain their existing wrapping.
+
+WASD/arrows and the touch joystick retain their bindings. Ship pitch can complete
+full loops to reach above and below. The existing speed slider now ranges from
+0–1200: zero smoothly brakes, and higher targets accelerate with the existing
+frame-independent damping. The speed display reports actual velocity; the slider
+sets the target. Pause remains an immediate simulation freeze. Travel coordinates
+persist during the current session and are reproducible after sector unloading;
+reloading starts a new journey at the original position.
+
+Validation: `npm test`, `npm run build`, and
+`CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`.

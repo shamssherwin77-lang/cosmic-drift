@@ -42,7 +42,7 @@ test.describe('mobile Light Jump',()=>{
   });
 });
 
-test('procedural reseeding changes real GPU layout and landmarks without growing resources',async({page})=>{
+test('Light Jump changes atmosphere while preserving persistent landmarks and GPU resources',async({page})=>{
   const errors=[];page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.route('**/jump-world-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('/jump-world-harness');
   const result=await page.evaluate(async()=>{
@@ -50,6 +50,7 @@ test('procedural reseeding changes real GPU layout and landmarks without growing
     const renderer=new T.WebGLRenderer();renderer.setSize(320,200);const scene=new T.Scene(),camera=new T.PerspectiveCamera(68,1.6,.1,16000),space=createSpace(scene),position=new T.Vector3();
     space.configure('Low',1,320,200,.28,true);space.update(.1,0,0,position,.9);space.renderAtmosphere(renderer,camera,true);renderer.render(scene,camera);
     const fields=scene.children.filter(o=>o.isPoints),bodies=scene.getObjectByName('regional-celestial-bodies');
+    camera.rotation.y=2.2;space.renderAtmosphere(renderer,camera,true);renderer.render(scene,camera);camera.rotation.y=0;space.renderAtmosphere(renderer,camera,true);renderer.render(scene,camera);
     const before=fields[0].material.uniforms.layoutOffset.value.toArray(),bodyBefore=bodies.children[0].position.toArray();const memory={...renderer.info.memory};
     for(let i=0;i<8;i++){space.setJump(1,1);space.reseed(92341+i*7881,(i+2)%5,position);space.update(.1,i,(i+2)%5,position,.9);space.renderAtmosphere(renderer,camera,true);renderer.render(scene,camera);}
     const heading=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),2.2);
@@ -58,5 +59,5 @@ test('procedural reseeding changes real GPU layout and landmarks without growing
     const after=fields[0].material.uniforms.layoutOffset.value.toArray(),bodyAfter=bodies.children[0].position.toArray(),end={...renderer.info.memory};
     space.dispose();renderer.dispose();return{before,after,bodyBefore,bodyAfter,memory,end,alignment,error:renderer.getContext().getError()};
   });
-  expect(result.after).not.toEqual(result.before);expect(result.bodyAfter).not.toEqual(result.bodyBefore);expect(result.end).toEqual(result.memory);expect(result.alignment).toBeGreaterThan(.7);expect(result.error).toBe(0);expect(errors).toEqual([]);
+  expect(result.after).not.toEqual(result.before);expect(result.bodyAfter).toEqual(result.bodyBefore);expect(result.end).toEqual(result.memory);expect(result.error).toBe(0);expect(errors).toEqual([]);
 });

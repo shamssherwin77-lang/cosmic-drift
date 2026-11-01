@@ -63,12 +63,12 @@ test('mouse inversion, touch independence and sensitivity work', () => {
   const slow = pilot(); slow.look(.1, 0, false, settings({sensitivity: .5}));
   near(slow.lookTargetYaw, normal.lookTargetYaw / 2);
 });
-test('look and pitch remain bounded and extreme pointer deltas cannot jump', () => {
+test('free-look remains bounded while ship pitch can travel through every direction', () => {
   const c = pilot(); c.look(10000, -10000, false, settings());
   assert.ok(Math.abs(c.lookTargetYaw) <= .320001 && c.lookTargetPitch <= .320001);
   for (let i = 0; i < 100; i++) c.look(1, -1, false, settings());
   c.key('KeyW', true); advance(c, settings(), 30);
-  near(c.pitch, .75); assert.ok(Math.abs(c.lookYaw) <= .85 && Math.abs(c.lookPitch) <= .5);
+  assert.ok(Math.abs(c.pitch) > .75 && Math.abs(c.pitch) <= Math.PI); assert.ok(Math.abs(c.lookYaw) <= .85 && Math.abs(c.lookPitch) <= .5);
   assert.ok(c.shipQuaternion.toArray().every(Number.isFinite));
 });
 test('touch dead zone, normalization, keyboard exclusion and neutral release', () => {
@@ -151,4 +151,25 @@ test('Light Jump pause freezes its clock and repeated jumps never reuse a destin
   const j=new LightJump();assert.equal(j.start(0,7123,true),false);j.start(0,7123);j.advance(.1);const elapsed=j.elapsed;j.advance(20,true);near(j.elapsed,elapsed);
   let region=0,seed=7123;const seeds=new Set<number>();
   for(let n=0;n<12;n++){if(j.busy)for(let i=0;i<120;i++)j.advance(.1);assert.ok(j.start(region,seed));assert.notEqual(j.destination,region);assert.ok(!seeds.has(j.seed));seeds.add(j.seed);region=j.destination;seed=j.seed;for(let i=0;i<120;i++)j.advance(.1);}
+});
+
+
+test('interstellar acceleration and braking are smooth, accurate and frame independent', () => {
+  const runs=[15,30,60,120].map(fps=>{
+    const c=pilot(),s=settings({speed:1200,motion:0});
+    c.step(1/fps,s);assert.ok(c.speed>0 && c.speed<70);
+    advance(c,s,10-1/fps,fps);assert.ok(c.position.z < -10000);
+    const before=c.speed;c.step(1/fps,{...s,speed:0});assert.ok(c.speed>0 && c.speed<before);
+    advance(c,{...s,speed:0},20-1/fps,fps);assert.ok(c.speed<.001);
+    return c;
+  });
+  for(const c of runs.slice(1)){near(c.speed,runs[0].speed);near(c.position.z,runs[0].position.z,.001);}
+});
+test('ship can point straight up, straight down and return through a complete loop',()=>{
+  const c=pilot(),s=settings({motion:0});
+  for(const pitch of [Math.PI/2,-Math.PI/2,Math.PI*2]){
+    c.pitch=pitch;c.step(1/60,s);
+    const forward=new Vector3(0,0,-1).applyQuaternion(c.shipQuaternion);
+    if(pitch===Math.PI*2)assert.ok(forward.z<-.999);else assert.ok(forward.y*Math.sign(pitch)>.999);
+  }
 });

@@ -85,8 +85,13 @@ export function createBodies(scene: T.Scene) {
       for(const moon of moons)moon.mesh.material.uniforms.seed.value=random()*90+1;
       cluster.copy(clusterOrigins[region]);cluster.x+=(random()-.5)*1300;cluster.y+=(random()-.5)*300;
     },
-    dispose(){rocks.dispose();},
-    configure(quality:string){planetCount=quality==='Low'?4:6;moonCount=quality==='Low'?2:3;rocks.count=quality==='Low'?24:quality==='Medium'?48:72;},
+    dispose(){
+      group.removeFromParent();
+      const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();
+      group.traverse(o=>{if(o instanceof T.Mesh){geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);}});
+      rocks.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());
+    },
+    configure(quality:string){planetCount=6;moonCount=3;rocks.count=quality==='Low'?24:quality==='Medium'?48:72;},
     update(dt:number,time:number,region:number,position:T.Vector3){
       const a=1-Math.exp(-dt*.28),visibility=1-T.MathUtils.smoothstep(jumpEnergy,.12,.65);
       for(let i=0;i<planets.length;i++){
@@ -101,8 +106,8 @@ export function createBodies(scene: T.Scene) {
         mesh.material.uniforms.alpha.value=planet.material.uniforms.alpha.value;
         mesh.material.uniforms.baseColor.value.lerp(palettes[region][2],a);mesh.material.uniforms.detailColor.value.lerp(detailPalettes[region][2],a);
       }
-      ring.quaternion.copy(orientation).multiply(ringOrientation);ring.position.copy(planets[1].position);ring.scale.setScalar(sizes[1]);ringMaterial.uniforms.alpha.value=planets[1].material.uniforms.alpha.value;ringMaterial.uniforms.color.value.lerp(palettes[region][1],a);
-      cluster.lerp(clusterOrigins[region],a);rocks.quaternion.copy(orientation);rocks.position.copy(cluster).applyQuaternion(orientation).add(anchor).sub(position);rocksMaterial.opacity=visibility;rocks.visible=visibility>.005;rocksMaterial.color.lerp(palettes[region][2],a);
+      ring.visible=true;ring.quaternion.copy(orientation).multiply(ringOrientation);ring.position.copy(planets[1].position);ring.scale.setScalar(sizes[1]);ringMaterial.uniforms.alpha.value=planets[1].material.uniforms.alpha.value;ringMaterial.uniforms.color.value.lerp(palettes[region][1],a);
+      rocks.quaternion.copy(orientation);rocks.position.copy(cluster).applyQuaternion(orientation).add(anchor).sub(position);rocksMaterial.opacity=visibility;rocks.visible=visibility>.005;rocksMaterial.color.lerp(palettes[region][2],a);
     },
   };
 }

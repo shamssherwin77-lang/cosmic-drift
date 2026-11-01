@@ -75,11 +75,11 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   await page.getByRole('combobox',{name:'Environment lighting'}).selectOption('Dark');
   await page.getByRole('button',{name:'Close settings'}).click();await page.keyboard.press('h');
   await page.waitForTimeout(3000);const dark=await measureWindow();
-  await page.keyboard.press('h');await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Show controls · H',exact:true}).click();await expect(page.locator('main')).not.toHaveClass(/hidden-ui/);await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('combobox',{name:'Environment lighting'}).selectOption('Cinematic');
   await page.getByRole('button',{name:'Close settings'}).click();await page.keyboard.press('h');
   await page.waitForTimeout(3000);const cinematic=await measureWindow();
-  expect(cinematic).toBeGreaterThan(dark*1.15);await page.keyboard.press('h');
+  expect(cinematic).toBeGreaterThan(dark*1.15);await page.getByRole('button',{name:'Show controls · H',exact:true}).click();
   await page.getByRole('button',{name:'Manual Flight',exact:true}).click();
   await page.locator('canvas').click({position:{x:300,y:150}});
   await page.keyboard.press('d');await page.keyboard.press('w');
