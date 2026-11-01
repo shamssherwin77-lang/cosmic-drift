@@ -89,13 +89,13 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   expect(errors).toEqual([]);
 });
 
-test('the cabin is enclosed on five sides, has a clear front window and uses five geometry batches',async({page})=>{
+test('panoramic cockpit encloses the pilot, leaves a clear view above the instruments and uses five batches',async({page})=>{
   await page.route('**/cabin-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('/cabin-harness');
   const result=await page.evaluate(async()=>{
     const T=await import('/node_modules/three/build/three.module.js'),{createCockpit}=await import('/src/graphics/cockpit.ts');
     const ship=new T.Group(),cabin=createCockpit(ship);ship.updateMatrixWorld(true);
     const shell=cabin.group.getObjectByName('enclosure-shell'),ray=new T.Raycaster();
-    const hits=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis));return ray.intersectObject(shell).length;});
+    const hits=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,.55,-1]].map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis));return ray.intersectObject(shell).length;});
     const batches=cabin.group.children.filter(o=>o.isMesh).length;cabin.dispose();
     return {hits,batches};
   });
