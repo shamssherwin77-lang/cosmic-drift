@@ -173,3 +173,13 @@ test('ship can point straight up, straight down and return through a complete lo
     if(pitch===Math.PI*2)assert.ok(forward.z<-.999);else assert.ok(forward.y*Math.sign(pitch)>.999);
   }
 });
+
+import { DEFAULT_AUDIO, parseAudioPreferences } from '../src/audio-preferences.ts';
+test('audio preferences survive malformed storage and sanitize saved mixer values', () => {
+  assert.deepEqual(parseAudioPreferences('{broken'), DEFAULT_AUDIO);
+  assert.deepEqual(parseAudioPreferences('null'), DEFAULT_AUDIO);
+  const preferences = parseAudioPreferences(JSON.stringify({ track:'orbit', engine:7, space:-2, music:.75, engineEnabled:false, spaceEnabled:true, musicEnabled:false }));
+  assert.deepEqual(preferences, { track:'orbit', engine:1, space:0, music:.75, engineEnabled:false, spaceEnabled:true, musicEnabled:false });
+  const invalid = parseAudioPreferences(JSON.stringify({ track:'missing-song', music:'loud', spaceEnabled:'yes' }));
+  assert.deepEqual(invalid, DEFAULT_AUDIO);
+});

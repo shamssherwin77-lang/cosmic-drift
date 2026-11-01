@@ -106,3 +106,17 @@ reloading starts a new journey at the original position.
 
 Validation: `npm test`, `npm run build`, and
 `CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`.
+
+### Sound mixer and free music
+
+Open **Audio settings** (the speaker icon) to mix engine/Light Jump, space
+ambience and music separately. Each layer has its own toggle and volume. Choose
+Starlight Piano, Nebula Dreams, Quiet Orbit or Lunar Tide to begin listening;
+track changes crossfade. Mixer preferences are remembered locally, while master
+sound starts muted after reload. Pause/backgrounding quiets the mix; resume
+starts a fresh, gentle musical phrase without queuing missed notes.
+
+All four original musical arrangements are free under CC0 1.0; see
+[the music license](docs/music-license.md). Playback uses no external recordings,
+paid music services, downloads or new dependencies. Only the selected track
+schedules notes; at most one previous track is retained during a crossfade.

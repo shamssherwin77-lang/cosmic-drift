@@ -1,0 +1,81 @@
+import { test, expect } from '@playwright/test';
+
+const signal = page => page.evaluate(async () => {
+  const { analyser } = window.audioHarness, data = new Float32Array(analyser.fftSize), spectrum = new Float32Array(analyser.frequencyBinCount);
+  let rms = 0;
+  for (let sample=0;sample<3;sample++) {
+    await new Promise(resolve=>setTimeout(resolve,40));analyser.getFloatTimeDomainData(data);
+    rms = Math.max(rms,Math.sqrt(data.reduce((s,x)=>s+x*x,0)/data.length));
+  }
+  analyser.getFloatFrequencyData(spectrum);
+  let energy=0,weighted=0;
+  spectrum.forEach((db,i)=>{const magnitude=10**(db/20);energy+=magnitude;weighted+=magnitude*i*window.audioHarness.audio.ctx.sampleRate/analyser.fftSize;});
+  return {rms,centroid:weighted/Math.max(energy,1e-12)};
+});
+const configure = (page, patch, enabled=true, paused=false) => page.evaluate(({patch,enabled,paused})=>{
+  const h=window.audioHarness;Object.assign(h.settings,patch);h.audio.set(enabled,h.settings,paused);
+},{patch,enabled,paused});
+
+test('real audio: engine, space and four original tracks produce independent signals and mute cleanly',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/audio-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body><button>Start audio</button></body></html>'}));
+  await page.goto('/audio-harness');
+  await page.evaluate(async()=>{
+    const {SpaceAudio}=await import('/src/audio.ts'),{DEFAULT_AUDIO}=await import('/src/audio-preferences.ts');
+    const audio=new SpaceAudio(),settings={...DEFAULT_AUDIO,engine:1,engineEnabled:true,spaceEnabled:false,musicEnabled:false};
+    window.audioHarness={audio,settings};
+    document.querySelector('button').onclick=async()=>{
+      await audio.start();audio.set(true,settings,false);
+      const analyser=audio.ctx.createAnalyser();analyser.fftSize=4096;analyser.smoothingTimeConstant=0;audio.master.connect(analyser);
+      window.audioHarness.analyser=analyser;window.audioHarness.ready=true;
+    };
+  });
+  await page.getByRole('button',{name:'Start audio'}).click();
+  await expect.poll(()=>page.evaluate(()=>window.audioHarness.ready)).toBe(true);
+  await page.waitForTimeout(1100);const engine=await signal(page);expect(engine.rms).toBeGreaterThan(.01);
+  await configure(page,{engineEnabled:false,spaceEnabled:true,space:1});await page.waitForTimeout(1400);
+  const space=await signal(page);expect(space.rms).toBeGreaterThan(.001);
+  const tracks=[];
+  for(const track of ['starlight','nebula','orbit','lunar']){
+    await configure(page,{spaceEnabled:false,musicEnabled:true,music:1,track});await page.waitForTimeout(1600);
+    const music=await signal(page);expect(music.rms).toBeGreaterThan(.001);expect(music.rms).toBeLessThan(.4);tracks.push(music);
+  }
+  expect(Math.max(...tracks.map(t=>t.centroid))-Math.min(...tracks.map(t=>t.centroid)),JSON.stringify(tracks)).toBeGreaterThan(20);
+  await configure(page,{},true,true);await page.waitForTimeout(1600);expect((await signal(page)).rms).toBeLessThan(.001);
+  await configure(page,{},true,false);await page.waitForTimeout(1200);expect((await signal(page)).rms).toBeGreaterThan(.001);
+  await configure(page,{},false);await page.waitForTimeout(1600);expect((await signal(page)).rms).toBeLessThan(.001);
+  // Switching rapidly and disposing must remain safe with scheduled notes still alive.
+  for(const track of ['starlight','nebula','orbit','lunar'])await configure(page,{track});
+  await page.evaluate(()=>window.audioHarness.audio.dispose());expect(errors).toEqual([]);
+});
+
+test.describe('mobile audio selection',()=>{
+  test.use({viewport:{width:412,height:915},hasTouch:true,isMobile:true,deviceScaleFactor:1});
+  test('mix layers, choose music, preserve preferences and restore muted after reload',async({page})=>{
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto('/');await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
+    await expect(page.getByRole('radio')).toHaveCount(4);
+    await page.getByRole('checkbox',{name:'Engine sound',exact:false}).uncheck();
+    await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
+    await page.getByRole('slider',{name:'Space volume'}).fill('0.61');
+    await page.getByRole('radio',{name:'Quiet Orbit',exact:true}).check();
+    await expect(page.getByRole('button',{name:'Mute all audio',exact:true})).toBeVisible();
+    await page.getByRole('checkbox',{name:'Music',exact:false}).uncheck();
+    await expect(page.getByRole('slider',{name:'Music volume'})).toBeDisabled();
+    await page.getByRole('radio',{name:'Lunar Tide',exact:true}).check();
+    await expect(page.getByRole('slider',{name:'Music volume'})).toBeEnabled();
+    await page.screenshot({path:'test-results/audio-portrait.png'});
+    await page.reload();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
+    await expect(page.getByRole('radio',{name:'Lunar Tide',exact:true})).toBeChecked();
+    await expect(page.getByRole('slider',{name:'Space volume'})).toHaveValue('0.61');
+    await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'Enable sound',exact:true})).toBeVisible();
+    await page.setViewportSize({width:915,height:412});
+    await page.getByRole('radio',{name:'Starlight Piano',exact:true}).check();
+    const panel=page.locator('.panel');expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+    await page.getByRole('button',{name:'Close settings'}).tap();
+    await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
+    await expect(page.getByRole('group',{name:'Touch flight joystick'})).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
