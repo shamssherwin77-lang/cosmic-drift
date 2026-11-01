@@ -16,7 +16,7 @@ const configure = (page, patch, enabled=true, paused=false) => page.evaluate(({p
   const h=window.audioHarness;Object.assign(h.settings,patch);h.audio.set(enabled,h.settings,paused);
 },{patch,enabled,paused});
 
-test('real audio: engine, space and four original tracks produce independent signals and mute cleanly',async({page})=>{
+test('real audio: engine, space and four licensed recordings produce independent signals and mute cleanly',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/audio-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body><button>Start audio</button></body></html>'}));
   await page.goto('/audio-harness');
@@ -36,16 +36,22 @@ test('real audio: engine, space and four original tracks produce independent sig
   await configure(page,{engineEnabled:false,spaceEnabled:true,space:1});await page.waitForTimeout(1400);
   const space=await signal(page);expect(space.rms).toBeGreaterThan(.001);
   const tracks=[];
-  for(const track of ['starlight','nebula','orbit','lunar']){
-    await configure(page,{spaceEnabled:false,musicEnabled:true,music:1,track});await page.waitForTimeout(1600);
+  for(const track of ['meditation','floating','jellyfish','soaring']){
+    await configure(page,{spaceEnabled:false,musicEnabled:true,music:1,track});
+    await expect.poll(()=>page.evaluate(()=>window.audioHarness.audio.musicState.state)).toBe('playing');
+    const recording=await page.evaluate(()=>{const el=window.audioHarness.audio.currentRecording;el.currentTime=20;return{src:el.currentSrc,duration:el.duration};});
+    expect(recording.src).toContain('.mp3');expect(recording.duration).toBeGreaterThan(180);
+    await expect.poll(()=>page.evaluate(()=>{const el=window.audioHarness.audio.currentRecording;return el.currentTime>=20&&el.readyState>=3;})).toBe(true);
+    await page.waitForTimeout(1600);
     const music=await signal(page);expect(music.rms).toBeGreaterThan(.001);expect(music.rms).toBeLessThan(.4);tracks.push(music);
   }
-  expect(Math.max(...tracks.map(t=>t.centroid))-Math.min(...tracks.map(t=>t.centroid)),JSON.stringify(tracks)).toBeGreaterThan(20);
+  expect(tracks).toHaveLength(4);
   await configure(page,{},true,true);await page.waitForTimeout(1600);expect((await signal(page)).rms).toBeLessThan(.001);
+  expect(await page.evaluate(()=>window.audioHarness.audio.currentRecording.paused)).toBe(true);
   await configure(page,{},true,false);await page.waitForTimeout(1200);expect((await signal(page)).rms).toBeGreaterThan(.001);
   await configure(page,{},false);await page.waitForTimeout(1600);expect((await signal(page)).rms).toBeLessThan(.001);
-  // Switching rapidly and disposing must remain safe with scheduled notes still alive.
-  for(const track of ['starlight','nebula','orbit','lunar'])await configure(page,{track});
+  // Rapid selection and disposal must cancel the old stream without leaking players.
+  for(const track of ['meditation','floating','jellyfish','soaring'])await configure(page,{track});
   await page.evaluate(()=>window.audioHarness.audio.dispose());expect(errors).toEqual([]);
 });
 
@@ -58,24 +64,42 @@ test.describe('mobile audio selection',()=>{
     await page.getByRole('checkbox',{name:'Engine sound',exact:false}).uncheck();
     await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
     await page.getByRole('slider',{name:'Space volume'}).fill('0.61');
-    await page.getByRole('radio',{name:'Quiet Orbit',exact:true}).check();
+    await page.getByRole('radio',{name:'Jellyfish in Space',exact:true}).check();
     await expect(page.getByRole('button',{name:'Mute all audio',exact:true})).toBeVisible();
     await page.getByRole('checkbox',{name:'Music',exact:false}).uncheck();
     await expect(page.getByRole('slider',{name:'Music volume'})).toBeDisabled();
-    await page.getByRole('radio',{name:'Lunar Tide',exact:true}).check();
+    await page.getByRole('radio',{name:'Soaring',exact:true}).check();
     await expect(page.getByRole('slider',{name:'Music volume'})).toBeEnabled();
     await page.screenshot({path:'test-results/audio-portrait.png'});
     await page.reload();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
-    await expect(page.getByRole('radio',{name:'Lunar Tide',exact:true})).toBeChecked();
+    await expect(page.getByRole('radio',{name:'Soaring',exact:true})).toBeChecked();
     await expect(page.getByRole('slider',{name:'Space volume'})).toHaveValue('0.61');
     await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
     await expect(page.getByRole('button',{name:'Enable sound',exact:true})).toBeVisible();
     await page.setViewportSize({width:915,height:412});
-    await page.getByRole('radio',{name:'Starlight Piano',exact:true}).check();
+    await page.getByRole('radio',{name:'Meditation Impromptu 01',exact:true}).check();
     const panel=page.locator('.panel');expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
     await page.getByRole('button',{name:'Close settings'}).tap();
     await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
     await expect(page.getByRole('group',{name:'Touch flight joystick'})).toBeVisible();
     expect(errors).toEqual([]);
   });
+});
+
+test('recordings are lazy, credit the composer and show a retryable error instead of synthetic fallback',async({page})=>{
+  const requests=[];let fail=true;
+  page.on('request',request=>{if(request.url().includes('/audio/')&&request.url().includes('.mp3'))requests.push(request.url());});
+  await page.route('**/audio/*.mp3',route=>fail?route.abort():route.continue());
+  await page.goto('/');await page.getByRole('button',{name:'Audio settings',exact:true}).click();
+  expect(requests).toEqual([]);
+  await page.getByRole('radio',{name:'Floating Cities',exact:true}).check();
+  await expect(page.locator('.audio-note')).toHaveAttribute('data-playback-state','error');
+  await expect(page.locator('.audio-note')).toContainText(/could not|allow playback/);
+  expect(requests.every(url=>url.includes('floating-cities.mp3'))).toBe(true);
+  fail=false;
+  await page.getByRole('radio',{name:'Floating Cities',exact:true}).click();
+  await expect(page.locator('.audio-note')).toHaveAttribute('data-playback-state','playing');
+  await page.getByText('Music credits & licenses',{exact:true}).click();
+  await expect(page.locator('.music-credits')).toContainText('Kevin MacLeod');
+  await expect(page.locator('.music-credits a').filter({hasText:'CC BY 3.0'})).toHaveAttribute('href','https://creativecommons.org/licenses/by/3.0/');
 });

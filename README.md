@@ -107,16 +107,17 @@ reloading starts a new journey at the original position.
 Validation: `npm test`, `npm run build`, and
 `CHROMIUM_PATH=/usr/bin/chromium npm run test:browser`.
 
-### Sound mixer and free music
+### Sound mixer and recorded music
 
 Open **Audio settings** (the speaker icon) to mix engine/Light Jump, space
-ambience and music separately. Each layer has its own toggle and volume. Choose
-Starlight Piano, Nebula Dreams, Quiet Orbit or Lunar Tide to begin listening;
-track changes crossfade. Mixer preferences are remembered locally, while master
-sound starts muted after reload. Pause/backgrounding quiets the mix; resume
-starts a fresh, gentle musical phrase without queuing missed notes.
+ambience and music separately. Each layer has its own toggle and volume.
+The music library uses human-composed recordings by **Kevin MacLeod**:
+Meditation Impromptu 01, Floating Cities, Jellyfish in Space and Soaring.
+These editions are free to use **with attribution under CC BY 3.0**; composer,
+source and license links appear in the panel. See [the credits and provenance](docs/music-license.md).
 
-All four original musical arrangements are free under CC0 1.0; see
-[the music license](docs/music-license.md). Playback uses no external recordings,
-paid music services, downloads or new dependencies. Only the selected track
-schedules notes; at most one previous track is retained during a crossfade.
+The selected recording streams from the site's own MP3 files; only two persistent
+players are used for crossfading. Pause/mute stops the recording after a fade and
+resume preserves its position. Load failures are visible and retryable. Mixer
+preferences remain local; master sound starts off after reload. Preferences from
+the old procedural tracks migrate to the corresponding real recordings.

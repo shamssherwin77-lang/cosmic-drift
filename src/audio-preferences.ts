@@ -1,8 +1,8 @@
 export const MUSIC_TRACKS = [
-  { id: 'starlight', name: 'Starlight Piano', mood: 'Soft keys · a slow, peaceful melody', tempo: 48, root: 48, voice: 'piano', melody: [12, 16, 19, -1, 14, 12, 7, -1, 9, 12, 16, -1, 14, 7, 12, -1] },
-  { id: 'nebula', name: 'Nebula Dreams', mood: 'Warm pads · floating through the clouds', tempo: 40, root: 45, voice: 'pad', melody: [12, -1, 19, -1, 16, -1, 14, -1, 9, -1, 12, -1, 7, -1, 16, -1] },
-  { id: 'orbit', name: 'Quiet Orbit', mood: 'Gentle chimes · spacious and unhurried', tempo: 36, root: 50, voice: 'chime', melody: [24, -1, 19, -1, 16, 14, -1, -1, 12, -1, 21, -1, 19, 16, -1, -1] },
-  { id: 'lunar', name: 'Lunar Tide', mood: 'Mellow tones · a quiet night on the moon', tempo: 44, root: 41, voice: 'warm', melody: [12, 7, -1, 9, 16, -1, 14, -1, 12, -1, 7, 4, 9, -1, 7, -1] },
+  { id: 'meditation', name: 'Meditation Impromptu 01', mood: 'Gentle piano · meditation', file: 'meditation-impromptu-01.mp3', artist: 'Kevin MacLeod', isrc: 'USUAN1100163' },
+  { id: 'floating', name: 'Floating Cities', mood: 'Dreamlike ambient · a quiet future', file: 'floating-cities.mp3', artist: 'Kevin MacLeod', isrc: 'USUAN1600018' },
+  { id: 'jellyfish', name: 'Jellyfish in Space', mood: 'Soft space music · a flowing journey', file: 'jellyfish-in-space.mp3', artist: 'Kevin MacLeod', isrc: 'USUAN1500030' },
+  { id: 'soaring', name: 'Soaring', mood: 'Atmospheric ambient · calm and spacious', file: 'soaring.mp3', artist: 'Kevin MacLeod', isrc: 'USUAN1600040' },
 ] as const;
 export type MusicTrack = typeof MUSIC_TRACKS[number]['id'];
 export type AudioPreferences = {
@@ -11,7 +11,7 @@ export type AudioPreferences = {
 };
 export const DEFAULT_AUDIO: AudioPreferences = {
   engineEnabled: true, spaceEnabled: true, musicEnabled: true,
-  engine: .35, space: .3, music: .5, track: 'starlight',
+  engine: .35, space: .3, music: .5, track: 'meditation',
 };
 export const AUDIO_STORAGE_KEY = 'cosmic-drift-audio-v1';
 export function parseAudioPreferences(value: string | null): AudioPreferences {
@@ -22,7 +22,9 @@ export function parseAudioPreferences(value: string | null): AudioPreferences {
     const data = saved as Record<string, unknown>;
     for (const key of ['engineEnabled', 'spaceEnabled', 'musicEnabled'] as const) if (typeof data[key] === 'boolean') result[key] = data[key];
     for (const key of ['engine', 'space', 'music'] as const) if (typeof data[key] === 'number' && Number.isFinite(data[key])) result[key] = Math.max(0, Math.min(1, data[key]));
-    if (MUSIC_TRACKS.some(track => track.id === data.track)) result.track = data.track as MusicTrack;
+    const legacy: Record<string, MusicTrack> = { starlight:'meditation', nebula:'floating', orbit:'jellyfish', lunar:'soaring' };
+    const selected = typeof data.track === 'string' ? legacy[data.track] ?? data.track : '';
+    if (MUSIC_TRACKS.some(track => track.id === selected)) result.track = selected as MusicTrack;
   } catch { /* Storage is optional: bad or blocked storage must not prevent flight. */ }
   return result;
 }

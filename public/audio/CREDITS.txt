@@ -1,0 +1,40 @@
+RECORDED MUSIC CREDITS
+
+"Meditation Impromptu 01" by Kevin MacLeod (incompetech.com)
+ISRC: USUAN1100163
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100163
+
+"Floating Cities" by Kevin MacLeod (incompetech.com)
+ISRC: USUAN1600018
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600018
+
+"Jellyfish in Space" by Kevin MacLeod (incompetech.com)
+ISRC: USUAN1500030
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500030
+
+"Soaring" by Kevin MacLeod (incompetech.com)
+ISRC: USUAN1600040
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600040
+
+All four recordings: Copyright Kevin MacLeod.
+These editions are licensed under Creative Commons Attribution 3.0 Unported:
+https://creativecommons.org/licenses/by/3.0/
+Legal code: https://creativecommons.org/licenses/by/3.0/legalcode
+Retain these credits and license links when reusing the recordings.
+No endorsement by the composer is implied.
+
+Source editions:
+FitVita by smyrna-pergamum, sourced from Wikimedia Commons.
+https://github.com/smyrna-pergamum/fitvita
+Source commit: 17ec1f80be03ec45747bc39a64b015491a6028fb
+Original source files: app/src/main/res/raw/med_01.ogg, med_07.ogg,
+med_09.ogg and med_10.ogg respectively.
+The source project credits these editions to Kevin MacLeod under CC BY 3.0.
+Its README describes trimming long recordings, adding loop fades,
+loudness normalization, and encoding to Opus at 48 kbps.
+
+Cosmic Drift changes: transcoded the above editions to stereo MP3, 44.1 kHz,
+96 kbps for broad browser support; embedded track, artist and license tags.
+No new musical parts were composed or synthesized for these recordings.
+They are recorded instrumental/ambient music, not Buddhist chanting or
+recordings of a religious ceremony.
