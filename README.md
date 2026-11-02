@@ -26,14 +26,12 @@ npm run preview
 ## کنترل‌ها
 
 - **Start journey:** شروع حرکت؛ **Pause / Resume** یا Space: توقف و ادامه.
-- **Autopilot:** حرکت آرام خودکار؛ **Manual Flight:** هدایت سفینه با WASD یا جهت‌ها. A/چپ به چپ، D/راست به راست، W/بالا به بالا و S/پایین به پایین می‌چرخاند. Roll خودکار وجود ندارد.
-- درگ موس روی فضا: نگاه مستقل از مسیر سفینه؛ کشیدن به راست یعنی نگاه به راست و کشیدن به بالا یعنی نگاه به بالا. لغزندهٔ Drift speed سرعت سفر را تنظیم می‌کند.
-- روی موبایل در **Manual Flight**، جوی‌استیک سمت چپ مسیر را کنترل می‌کند؛ انگشت دوم روی فضای آزاد، زاویهٔ نگاه را عوض می‌کند. با رهاکردن جوی‌استیک، فرمان خنثی و چرخش با اینرسی کوتاه متوقف می‌شود. لمس کوتاهِ فضا جهت را عوض نمی‌کند. حالت افقی توصیه می‌شود.
+- **پرواز دستی:** هدایت سفینه با WASD یا جهت‌ها. A/چپ به چپ، D/راست به راست، W/بالا به بالا و S/پایین به پایین می‌چرخاند. Roll خودکار وجود ندارد.
+- درگ موس روی فضا: نگاه مستقل از مسیر سفینه؛ کشیدن به راست یعنی نگاه به راست و کشیدن به بالا یعنی نگاه به بالا. لغزندهٔ Cruise speed سرعت سفر را تنظیم می‌کند.
+- روی موبایل پس از شروع، جوی‌استیک سمت چپ مسیر را کنترل می‌کند؛ انگشت دوم روی فضای آزاد، زاویهٔ نگاه را عوض می‌کند. با رهاکردن جوی‌استیک، فرمان خنثی و چرخش با اینرسی کوتاه متوقف می‌شود. لمس کوتاهِ فضا جهت را عوض نمی‌کند. حالت افقی توصیه می‌شود.
 - در Settings، **Steering / mouse sensitivity** برای حساسیت هدایت دسکتاپ و نگاه با موس، **Touch sensitivity** برای هدایت و نگاه لمسی، و دو گزینهٔ **Invert mouse** برای معکوس‌کردن محورهای موس وجود دارند. وارونگی موس روی لمس اثر ندارد.
 - هنگام بازبودن تنظیمات، ورودی هدایت متوقف می‌شود؛ پس از بستن منو کلید یا جوی‌استیک را دوباره بگیرید. خروج از پنجره، لغو لمس و تغییر جهت صفحه نیز ورودی را پاک می‌کنند. از ژیروسکوپ استفاده نمی‌شود.
-- **Meditation mode:** حرکت آهسته‌تر و محوشدن اطلاعات اضافی.
-- **Explore regions:** انتخاب پنج منطقه؛ گزینهٔ خودکار هر ۹۰ ثانیه منطقه را عوض می‌کند. رنگ و نور سحابی‌ها به‌تدریج تغییر می‌کنند.
-- آیکن صدا در پایین: فعال‌سازی یا قطع صدا؛ آیکن صدای بالا: تنظیم مستقل موسیقی و موتور. تمام صداها با Web Audio API ساخته می‌شوند و فایل دارای حق نشر ندارند.
+- آیکن صدا در سمت راست: تنظیم مستقل موسیقی، موتور و محیط. موسیقی ضبط‌شدهٔ Kevin MacLeod با مجوز CC BY 3.0 همراه با اعتبار سازنده استفاده می‌شود؛ با زدن Start journey پخش آغاز می‌شود.
 - تنظیمات: کیفیت Low / Medium / High، میزان حرکت خودکار دوربین، Reduced motion و نمایش کابین.
 - روشنایی **Dark / Balanced / Cinematic** با پیش‌فرض Balanced و لغزندهٔ **Soft bloom** برای هالهٔ ملایم قابل تنظیم‌اند. Exposure با تغییر منطقه به‌تدریج تنظیم می‌شود. در Low و Medium، Bloom پس‌پردازشی غیرفعال است و هالهٔ سبک در shader ستاره‌ها اجرا می‌شود.
 - دستگاه‌های دارای ورودی لمسی به‌طور پیش‌فرض با کیفیت Low و دسکتاپ با Medium شروع می‌شوند. می‌توانید کیفیت را دستی افزایش دهید؛ روی Android حالت افقی و Low پیشنهاد می‌شود.
@@ -119,7 +117,7 @@ source and license links appear in the panel. See [the credits and provenance](d
 The selected recording streams from the site's own MP3 files; only two persistent
 players are used for crossfading. Pause/mute stops the recording after a fade and
 resume preserves its position. Load failures are visible and retryable. Mixer
-preferences remain local; master sound starts off after reload. Preferences from
+preferences remain local; sound waits for Start journey after reload. Preferences from
 the old procedural tracks migrate to the corresponding real recordings.
 
 ### Exterior and richer system travel
@@ -138,7 +136,7 @@ remain bounded as travel continues. Returning recreates the same system.
 
 Cruise speed is displayed in **game units per second (u/s)**, not km/s. Distances,
 stellar sizes and transit times are deliberately compressed for relaxed exploration.
-The region display and mobile Controls panel show the current passage and a next
+The navigation caption shows the current passage and a next
 system in the ship's forward direction, with its distance in game units.
 
 
@@ -158,3 +156,13 @@ Medium retain the material treatment without the shadow-map pass. Devices withou
 floating-point render-target support fall back to direct ship lighting. Reflection
 lighting is a generated environment, not ray-traced or screen-space scene reflection.
 The cinematic resource test verifies quality switching and complete GPU cleanup.
+
+### Minimal flight interface
+
+The centered Start journey button enters manual flight and starts the selected
+recorded music in the same user gesture. Before starting, only entry and fullscreen
+are exposed. A persistent bottom speed slider, left joystick and right-side action
+rail replace the flight deck. Music and graphics open individual settings overlays.
+There is no mode selector, region picker or automatic region timer. Jump selects
+a real neighboring system in the flight direction, relocates under its transition
+veil, and derives the atmosphere from the destination coordinates.

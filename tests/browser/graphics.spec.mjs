@@ -45,7 +45,7 @@ test('all quality tiers render outside/inside clouds and release GPU resources',
 test('lighting defaults to Balanced and brightness/bloom can be changed without losing controls', async ({page}) => {
   const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   // Touch hardware starts on the lightest tier; this test exercises the real app.
-  await page.goto('/');
+  await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Environment lighting'})).toHaveValue('Balanced');
   await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');
@@ -59,7 +59,7 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');
   await page.getByLabel('Show cockpit',{exact:true}).uncheck();
   await page.getByLabel('Show cockpit',{exact:true}).check();
-  await page.getByRole('button',{name:'Close settings'}).click();
+  await page.getByRole('button',{name:'Close settings',exact:true}).click();
   const measureWindow = async () => {
     const png = await page.screenshot({clip:{x:300,y:100,width:600,height:400}});
     return page.evaluate(async base64 => {
@@ -73,14 +73,14 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   };
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('combobox',{name:'Environment lighting'}).selectOption('Dark');
-  await page.getByRole('button',{name:'Close settings'}).click();await page.keyboard.press('h');
+  await page.getByRole('button',{name:'Close settings',exact:true}).click();await page.keyboard.press('h');
   await page.waitForTimeout(3000);const dark=await measureWindow();
   await page.getByRole('button',{name:'Show controls · H',exact:true}).click();await expect(page.locator('main')).not.toHaveClass(/hidden-ui/);await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('combobox',{name:'Environment lighting'}).selectOption('Cinematic');
-  await page.getByRole('button',{name:'Close settings'}).click();await page.keyboard.press('h');
+  await page.getByRole('button',{name:'Close settings',exact:true}).click();await page.keyboard.press('h');
   await page.waitForTimeout(3000);const cinematic=await measureWindow();
   expect(cinematic).toBeGreaterThan(dark*1.15);await page.getByRole('button',{name:'Show controls · H',exact:true}).click();
-  await page.getByRole('button',{name:'Manual Flight',exact:true}).click();
+
   await page.locator('canvas').click({position:{x:300,y:150}});
   await page.keyboard.press('d');await page.keyboard.press('w');
   await page.getByRole('button',{name:'Pause',exact:true}).click();
@@ -128,7 +128,7 @@ test('each region has multiple large landmarks and instanced rocks at Low and Hi
 });
 
 test('performance mode lowers the rendering budget while preserving the selected quality and manual mode',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Graphics quality'})).toHaveValue('Medium');
   await page.getByLabel('Adaptive resolution',{exact:true}).uncheck();
   await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('High');
@@ -136,9 +136,9 @@ test('performance mode lowers the rendering budget while preserving the selected
   await page.getByLabel('Performance mode',{exact:true}).check();
   await expect.poll(()=>page.locator('canvas').evaluate(c=>c.width)).toBeLessThan(normal);
   await expect(page.getByRole('combobox',{name:'Graphics quality'})).toHaveValue('High');
-  await page.getByRole('button',{name:'Close settings'}).click();await page.getByRole('button',{name:'Manual Flight',exact:true}).click();
+  await page.getByRole('button',{name:'Close settings',exact:true}).click();
   await page.getByRole('button',{name:'Pause',exact:true}).click();await page.getByRole('button',{name:'Resume',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Manual Flight',exact:true})).toHaveClass(/selected/);
+  await expect(page.locator('main')).toHaveClass(/manual-flight/);
 });
 
 test('cached nebula reprojects immediately during free-look and stays close to a fresh render',async({page})=>{

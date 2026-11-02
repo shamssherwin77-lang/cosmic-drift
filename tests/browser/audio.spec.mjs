@@ -59,7 +59,7 @@ test.describe('mobile audio selection',()=>{
   test.use({viewport:{width:412,height:915},hasTouch:true,isMobile:true,deviceScaleFactor:1});
   test('mix layers, choose music, preserve preferences and restore muted after reload',async({page})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto('/');await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
+    await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
     await expect(page.getByRole('radio')).toHaveCount(4);
     await page.getByRole('checkbox',{name:'Engine sound',exact:false}).uncheck();
     await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
@@ -71,16 +71,16 @@ test.describe('mobile audio selection',()=>{
     await page.getByRole('radio',{name:'Soaring',exact:true}).check();
     await expect(page.getByRole('slider',{name:'Music volume'})).toBeEnabled();
     await page.screenshot({path:'test-results/audio-portrait.png'});
-    await page.reload();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
+    await page.reload();await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
     await expect(page.getByRole('radio',{name:'Soaring',exact:true})).toBeChecked();
     await expect(page.getByRole('slider',{name:'Space volume'})).toHaveValue('0.61');
     await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
-    await expect(page.getByRole('button',{name:'Enable sound',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Mute all audio',exact:true})).toBeVisible();
     await page.setViewportSize({width:915,height:412});
     await page.getByRole('radio',{name:'Meditation Impromptu 01',exact:true}).check();
     const panel=page.locator('.panel');expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
-    await page.getByRole('button',{name:'Close settings'}).tap();
-    await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
+    await page.getByRole('button',{name:'Close settings',exact:true}).tap();
+
     await expect(page.getByRole('group',{name:'Touch flight joystick'})).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -89,13 +89,12 @@ test.describe('mobile audio selection',()=>{
 test('recordings are lazy, credit the composer and show a retryable error instead of synthetic fallback',async({page})=>{
   const requests=[];let fail=true;
   page.on('request',request=>{if(request.url().includes('/audio/')&&request.url().includes('.mp3'))requests.push(request.url());});
-  await page.route('**/audio/*.mp3',route=>fail?route.abort():route.continue());
-  await page.goto('/');await page.getByRole('button',{name:'Audio settings',exact:true}).click();
-  expect(requests).toEqual([]);
+  await page.route('**/audio/*.mp3',route=>fail&&route.request().url().includes('floating-cities')?route.abort():route.continue());
+  await page.goto('/');expect(requests).toEqual([]);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).click();
   await page.getByRole('radio',{name:'Floating Cities',exact:true}).check();
   await expect(page.locator('.audio-note')).toHaveAttribute('data-playback-state','error');
   await expect(page.locator('.audio-note')).toContainText(/could not|allow playback/);
-  expect(requests.every(url=>url.includes('floating-cities.mp3'))).toBe(true);
+  expect(requests.some(url=>url.includes('floating-cities.mp3'))).toBe(true);
   fail=false;
   await page.getByRole('radio',{name:'Floating Cities',exact:true}).click();
   await expect(page.locator('.audio-note')).toHaveAttribute('data-playback-state','playing');

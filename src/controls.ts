@@ -151,6 +151,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
   on(canvas, 'pointerdown', ((e: PointerEvent) => {
     if (!available() || lookPointer || (e.pointerType === 'mouse' && (e.button !== 0 || stickPointer !== null))) return;
     e.preventDefault();
+    if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
     lookPointer = { id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY };
     canvas.setPointerCapture(e.pointerId);
   }) as EventListener);
@@ -173,7 +174,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
     controller.steerTouch(x, y, true); showStick(x, y);
   };
   on(joystick, 'pointerdown', ((e: PointerEvent) => {
-    if (e.pointerType === 'mouse' || stickPointer !== null || !manual()) return;
+    if ((e.pointerType === 'mouse' && e.button !== 0) || stickPointer !== null || !manual()) return;
     e.preventDefault(); e.stopPropagation();
     // Drop a mouse look when a real touch takes control; keep two-finger touch roles.
     if (lookPointer?.type === 'mouse') endLook();

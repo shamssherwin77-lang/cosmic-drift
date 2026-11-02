@@ -51,3 +51,14 @@ test('six-axis travel reaches fixed landmarks and recreates the same sectors on 
   expect(result.counts).toEqual(Array(6).fill(28));
   expect(result.remaining).toBe(0);
 });
+
+test('Jump targets a physical neighbor and arrival navigation matches its coordinates',async({page})=>{
+ await page.route('**/jump-target-harness',r=>r.fulfill({contentType:'text/html',body:'<html></html>'}));await page.goto('/jump-target-harness');
+ const result=await page.evaluate(async()=>{
+  const T=await import('/node_modules/three/build/three.module.js'),{createUniverse}=await import('/src/graphics/universe.ts');
+  const scene=new T.Scene(),world=createUniverse(scene),origin=new T.Vector3(),heading=new T.Quaternion();world.update(.1,0,0,origin);
+  const before=world.navigation(origin,heading),target=world.jumpTarget(origin,heading);world.update(.1,1,target.region,target.position);const arrival=world.navigation(target.position,heading);
+  world.update(.1,2,0,origin);const returned=world.navigation(origin,heading);world.dispose();return{before,arrival,returned,target:{name:target.name,region:target.region,distance:target.position.length()}};
+ });
+ expect(result.target.distance).toBeGreaterThan(6000);expect(result.arrival.current).toBe(result.target.name);expect(result.arrival.region).toBe(result.target.region);expect(result.returned).toEqual(result.before);
+});

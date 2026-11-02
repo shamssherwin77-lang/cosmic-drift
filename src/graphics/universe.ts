@@ -1,7 +1,8 @@
 import * as T from 'three';
 import { createBodies } from './bodies';
 import { systemLayout } from './system-layout';
-export type NavigationInfo = { current: string; next: string; distance: number };
+export type NavigationInfo = { current: string; next: string; distance: number; region: number };
+export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string };
 
 export const SECTOR_SIZE = 14000;
 /** Coordinates, rather than visitation order, determine every landmark. */
@@ -60,6 +61,14 @@ export function createUniverse(scene: T.Scene) {
       slot.bodies.configure(quality);
     }
   };
+  const destination=(position:T.Vector3,heading:T.Quaternion)=>{
+    assign(position);forward.set(0,0,-1).applyQuaternion(heading);
+    let nearest=slots[0].sector!,nearestDistance=Infinity;
+    for(const slot of slots){const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
+    let target=nearest,best=-Infinity;
+    for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
+    return{nearest,nearestDistance,target};
+  };
   return {
     setJump(energy: number) { markerMaterial.uniforms.jump.value = 1 - T.MathUtils.smoothstep(energy,.12,.65); for (const slot of slots) slot.bodies.setJump(energy); },
     configure(value: string) { quality = value; for (const slot of slots) slot.bodies.configure(value); },
@@ -88,13 +97,13 @@ export function createUniverse(scene: T.Scene) {
       if(nearest){illumination.direction.copy(nearest.starWorld).sub(position).normalize();illumination.color.copy(nearest.starColor);illumination.intensity=1.2+2.4/(1+distance/25000000);}
       return illumination;
     },
+    jumpTarget(position:T.Vector3,heading:T.Quaternion):JumpTarget{
+      const {target}=destination(position,heading),approach=target.starWorld.clone().sub(position).normalize();
+      return{position:target.starWorld.clone().addScaledVector(approach,-4300),direction:approach,region:target.region,name:target.name};
+    },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
-      forward.set(0,0,-1).applyQuaternion(heading);
-      let nearest=slots[0].sector!,nearestDistance=Infinity;
-      for(const slot of slots){const distance=slot.sector!.starWorld.distanceTo(position);if(distance<nearestDistance){nearest=slot.sector!;nearestDistance=distance;}}
-      let target=nearest,best=-Infinity;
-      for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
-      return {current:nearestDistance<5200?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position))};
+      const {nearest,nearestDistance,target}=destination(position,heading);
+      return {current:nearestDistance<5200?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region};
     },
     dispose() { for (const slot of slots) slot.bodies.dispose(); markers.removeFromParent();markerGeometry.dispose();markerMaterial.dispose(); },
   };

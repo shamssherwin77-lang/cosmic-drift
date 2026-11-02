@@ -33,6 +33,8 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||jump.busy;return runtime;};
   const cinema=createCinema(renderer,scene,ship);
   const space = createSpace(scene);
+  let jumpTarget:ReturnType<typeof space.jumpTarget>|null=null,wasJumpBusy=false;
+  const arrivalRotation=new T.Euler(0,0,0,'YXZ');
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput);
@@ -74,12 +76,16 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     const delta = clock.getDelta(), dt = delta > .25 ? 0 : delta, s = get();
     if(document.hidden){controller.reset(true);return;}
     const graphicsDt = Math.min(delta, .25);
+    if(jump.busy&&!wasJumpBusy){jumpTarget=space.jumpTarget(controller.position,controller.shipQuaternion);jump.destination=jumpTarget.region;}
+    wasJumpBusy=jump.busy;
     jump.advance(delta,s.paused);
     if(jump.phase!==lastPhase){lastPhase=jump.phase;events.onPhase?.(jump.phase);}
-    if(jump.justCommitted){space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
+    if(jump.justCommitted){
+      if(jumpTarget){controller.position.copy(jumpTarget.position);controller.yaw=Math.atan2(-jumpTarget.direction.x,-jumpTarget.direction.z);controller.pitch=Math.asin(jumpTarget.direction.y);controller.reset(true);controller.shipQuaternion.setFromEuler(arrivalRotation.set(controller.pitch,controller.yaw,0,'YXZ'));nextNavigation=0;}
+      space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
     const renderRegion=jump.busy&&jump.committed?jump.destination:s.region;
     const visualEnergy=jump.energy*(s.reduced?.16:s.mode==='Meditation'?.55:1);
-    input.sync();readInput();
+    input.sync();readInput();runtime.paused=s.paused||!s.started;
     if(jump.busy){runtime.mode='Autopilot';runtime.motion=0;runtime.started=true;runtime.speed=s.speed+Math.pow(jump.energy,2)*(s.reduced?100:360);}
     advanceFlight(controller,delta,runtime);
     events.onAudio?.(visualEnergy,jump.charge,s.paused);
