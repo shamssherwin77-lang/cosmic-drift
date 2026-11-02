@@ -89,18 +89,22 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   expect(errors).toEqual([]);
 });
 
-test('panoramic cockpit encloses the pilot, leaves a clear view above the instruments and uses five batches',async({page})=>{
+test('observation windows transmit the world on both sides, rear and roof with six batches',async({page})=>{
   await page.route('**/cabin-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('/cabin-harness');
   const result=await page.evaluate(async()=>{
     const T=await import('/node_modules/three/build/three.module.js'),{createCockpit}=await import('/src/graphics/cockpit.ts');
     const ship=new T.Group(),cabin=createCockpit(ship);ship.updateMatrixWorld(true);
-    const shell=cabin.group.getObjectByName('enclosure-shell'),ray=new T.Raycaster();
-    const hits=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,.55,-1]].map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis));return ray.intersectObject(shell).length;});
-    const batches=cabin.group.children.filter(o=>o.isMesh).length;cabin.dispose();
-    return {hits,batches};
+    const opaque=cabin.group.children.filter(o=>o.isMesh&&!o.material.transparent),glass=cabin.group.getObjectByName('observation-glazing');
+    const ray=new T.Raycaster();
+    const directions=[[1,0,0],[-1,0,0],[0,0,1],[.2,1,0],[0,.55,-1]];
+    const samples=directions.map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis).normalize());return{opaque:ray.intersectObjects(opaque).length,glass:ray.intersectObject(glass).length};});
+    ray.set(new T.Vector3(),new T.Vector3(0,-1,0));const floor=ray.intersectObjects(opaque).length;
+    const batches=cabin.group.children.length,transparent=glass.material.transparent,depthWrite=glass.material.depthWrite;
+    cabin.dispose();return{samples,floor,batches,transparent,depthWrite};
   });
-  for(const count of result.hits.slice(0,5))expect(count).toBeGreaterThan(0);
-  expect(result.hits[5]).toBe(0);expect(result.batches).toBe(5);
+  for(const sample of result.samples)expect(sample.opaque).toBe(0);
+  for(const sample of result.samples.slice(0,4))expect(sample.glass).toBeGreaterThan(0);
+  expect(result.floor).toBeGreaterThan(0);expect(result.batches).toBe(6);expect(result.transparent).toBe(true);expect(result.depthWrite).toBe(false);
 });
 
 test('each region has multiple large landmarks and instanced rocks at Low and High',async({page})=>{

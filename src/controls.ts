@@ -59,11 +59,12 @@ export class FlightController {
     if (settings.paused || settings.blocked) return;
     const gain = touch ? settings.touchSensitivity : settings.sensitivity;
     // Deltas are fractions of the viewport, never browser movementX/Y.
-    this.lookTargetYaw = clamp(this.lookTargetYaw - clamp(dx, -.2, .2) * gain * 1.6 *
-      (!touch && settings.invertMouseX ? -1 : 1), -.85, .85);
+    const yaw = this.lookTargetYaw - clamp(dx, -.2, .2) * gain * 1.6 * (!touch && settings.invertMouseX ? -1 : 1);
+    this.lookTargetYaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     this.lookTargetPitch = clamp(this.lookTargetPitch - clamp(dy, -.2, .2) * gain * 1.6 *
-      (!touch && settings.invertMouseY ? -1 : 1), -.5, .5);
+      (!touch && settings.invertMouseY ? -1 : 1), -1.48, 1.48);
   }
+  centerLook() { this.lookTargetYaw = this.lookTargetPitch = 0; }
   reset(stop = false) {
     this.keys.clear();
     this.steerTouch(0, 0, false);
@@ -108,7 +109,9 @@ export class FlightController {
     this.pitch = Math.atan2(Math.sin(this.pitch), Math.cos(this.pitch));
     this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
     this.shipQuaternion.setFromEuler(this.euler.set(this.pitch, this.yaw, 0, 'YXZ'));
-    this.lookYaw = damp(this.lookYaw, this.lookTargetYaw, 6, dt);
+    const lookDelta = Math.atan2(Math.sin(this.lookTargetYaw - this.lookYaw), Math.cos(this.lookTargetYaw - this.lookYaw));
+    this.lookYaw += lookDelta * (1 - Math.exp(-6 * dt));
+    this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
     this.lookPitch = damp(this.lookPitch, this.lookTargetPitch, 6, dt);
     this.lookQuaternion.setFromEuler(this.euler.set(this.lookPitch, this.lookYaw, 0, 'YXZ'));
     const targetSpeed = s.started ? Math.max(0, s.speed) * (s.mode === 'Meditation' ? .15 : 1) * (s.reduced ? .3 : 1) : 2;

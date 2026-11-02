@@ -38,12 +38,25 @@ export function createCockpit(ship: T.Group) {
     const points = Array.from({ length: 41 }, (_, i) => { const a = -.12 + i / 40 * (Math.PI + .24); return new T.Vector3(Math.cos(a) * rx, -.95 + Math.sin(a) * ry, z); });
     add(new T.TubeGeometry(new T.CatmullRomCurve3(points), 48, radius, 8, false), m);
   }
-  // The solid room continues behind the glazed canopy, outside the forward view.
+  // The floor supports the consoles; the rest of the cabin is a glazed observatory.
   box(metal, 0, -2.02, .25, 7.3, .22, 7.0);
-  box(metal, 0, 3.35, -.4, 7.3, .2, 7.3);
-  box(metal, 0, .6, 2.55, 7.3, 5.7, .2);
+  box(metal, 0, -1.65, 2.55, 7.3, .65, .2);
+  box(metal, 0, 3.35, 2.55, 7.3, .13, .18);
+  for (const x of [-3.5, -1.4, 1.4, 3.5]) {
+    box(metal, x, 1.05, 2.55, .085, 4.55, .14);
+    box(edge, x + .048, 1.05, 2.48, .008, 4.42, .012);
+  }
+  for (const z of [-1.5, 1.1, 2.55]) {
+    box(metal, 0, 3.35, z, 7.05, .095, .09);
+    box(edge, 0, 3.29, z, 6.9, .008, .012);
+  }
   for (const side of [-1, 1]) {
-    box(metal, side * 3.55, -.15, .4, .2, 6.8, 5.0);
+    box(metal, side * 3.55, -1.65, .4, .17, .65, 4.3);
+    box(metal, side * 3.55, 3.35, -.4, .13, .13, 6.0);
+    for (const z of [-1.5, 1.1, 2.55]) {
+      box(metal, side * 3.55, 1.05, z, .12, 4.55, .085);
+      box(edge, side * 3.48, 1.05, z + .049, .012, 4.42, .008);
+    }
     // Low gunwales leave generous port and starboard views through the canopy.
     box(metal, side * 2.62, -1.52, -1.9, .65, .76, 4.0, 0, side * -.1);
     beam(trim, new T.Vector3(side * 1.35, -.3, -3.18), new T.Vector3(side * 2.72, -1.4, .25), .075);
@@ -102,12 +115,18 @@ export function createCockpit(ship: T.Group) {
     box(edge, side * 1.34, -1.82, -.45, .025, .025, .58);
     for (let i = 0; i < 18; i++) box(trim, side * 1.32, -1.91, -.9 + i * .085, .28, .014, .012);
   }
-  // Pilot seat and sealed aft bulkhead complete the room when looking back.
+  // A low seat back keeps the rear observation windows clear at eye level.
   box(dark, 0, -1.66, -.08, .99, .25, 1.4);
-  box(metal, 0, -.74, 1.0, 1.12, 1.65, .28, -.13);
-  box(dark, 0, -.72, .82, .91, 1.44, .14, -.13);
-  box(dark, 0, -.04, 2.39, 1.5, 3.0, .1);
-  for (const side of [-1, 1]) box(trim, side * .79, -.04, 2.29, .035, 3.0, .035);
+  box(metal, 0, -1.12, 1.0, 1.12, .92, .28, -.13);
+  box(dark, 0, -1.1, .82, .91, .78, .14, -.13);
+  // Glazing is a single lightweight batch. It transmits the actual world in every pane.
+  const glass = new T.MeshBasicMaterial({ color: '#a0d9e1', transparent: true, opacity: .025, depthWrite: false, side: T.DoubleSide });
+  const pane = (x: number, y: number, z: number, w: number, h: number, rx = 0, ry = 0) => {
+    const g = new T.PlaneGeometry(w, h); g.rotateX(rx); g.rotateY(ry); g.translate(x, y, z); add(g, glass);
+  };
+  for (const side of [-1, 1]) pane(side * 3.56, 1.05, -.4, 5.9, 4.5, 0, Math.PI / 2);
+  pane(0, 1.05, 2.57, 7.0, 4.5);
+  pane(0, 3.36, -.4, 7.0, 5.9, Math.PI / 2);
 
   // A single atlas gives each screen its own design without extra draw calls or downloads.
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1024;
@@ -176,7 +195,7 @@ export function createCockpit(ship: T.Group) {
     // Extrusions/tubes do not all carry matching attributes; normalize before merging.
     for (const part of parts) { if (part.index) { const expanded = part.toNonIndexed(); part.copy(expanded); expanded.dispose(); } part.deleteAttribute('uv1'); }
     const geometry = mergeGeometries(parts)!; parts.forEach(part => part.dispose());
-    const mesh = new T.Mesh(geometry, material); mesh.name = material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
+    const mesh = new T.Mesh(geometry, material); mesh.name = material === glass ? 'observation-glazing' : material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
   }
   return {
     group: cabin,

@@ -68,7 +68,7 @@ test('free-look remains bounded while ship pitch can travel through every direct
   assert.ok(Math.abs(c.lookTargetYaw) <= .320001 && c.lookTargetPitch <= .320001);
   for (let i = 0; i < 100; i++) c.look(1, -1, false, settings());
   c.key('KeyW', true); advance(c, settings(), 30);
-  assert.ok(Math.abs(c.pitch) > .75 && Math.abs(c.pitch) <= Math.PI); assert.ok(Math.abs(c.lookYaw) <= .85 && Math.abs(c.lookPitch) <= .5);
+  assert.ok(Math.abs(c.pitch) > .75 && Math.abs(c.pitch) <= Math.PI); assert.ok(Math.abs(c.lookYaw) <= Math.PI && Math.abs(c.lookPitch) <= 1.48);
   assert.ok(c.shipQuaternion.toArray().every(Number.isFinite));
 });
 test('touch dead zone, normalization, keyboard exclusion and neutral release', () => {
@@ -183,4 +183,18 @@ test('audio preferences survive malformed storage and sanitize saved mixer value
   const invalid = parseAudioPreferences(JSON.stringify({ track:'missing-song', music:'loud', spaceEnabled:'yes' }));
   assert.deepEqual(invalid, DEFAULT_AUDIO);
   assert.equal(parseAudioPreferences('{"track":"lunar"}').track,'soaring');
+});
+
+
+test('free-look reaches rear and roof, crosses yaw wrap smoothly and recenters without steering',()=>{
+  const c=pilot(),s=settings(),heading=c.shipQuaternion.clone();
+  for(let i=0;i<20;i++){c.look(.1,0,false,s);advance(c,s,.2);}
+  advance(c,s,1);
+  assert.ok(new Vector3(0,0,-1).applyQuaternion(c.lookQuaternion).z>.95);
+  const before=c.lookQuaternion.clone();c.look(.1,0,false,s);c.step(1/60,s);
+  assert.ok(before.angleTo(c.lookQuaternion)<.05);
+  for(let i=0;i<20;i++)c.look(0,-.1,false,s);
+  advance(c,s,2);assert.ok(new Vector3(0,0,-1).applyQuaternion(c.lookQuaternion).y>.99);
+  near(c.shipQuaternion.angleTo(heading),0);
+  c.centerLook();advance(c,s,3);assert.ok(c.lookQuaternion.angleTo(heading)<.001);
 });
