@@ -10,6 +10,7 @@ import { createJumpEffect } from './graphics/jump-effect';
 import { createSpace } from './graphics/space';
 import { createCockpit } from './graphics/cockpit';
 import { createHull } from './graphics/hull';
+import { createCinema } from './graphics/cinema';
 import type { NavigationInfo } from './graphics/universe';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
 export { regions } from './graphics/config';
@@ -30,6 +31,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const jump=events.jump ?? new LightJump();let lastPhase=jump.phase;
   const runtime={...get()};
   const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||jump.busy;return runtime;};
+  const cinema=createCinema(renderer,scene,ship);
   const space = createSpace(scene);
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
@@ -60,6 +62,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     if (composer) { composer.setPixelRatio(ratio); composer.setSize(width, height); }
     space.configure(effectiveQuality, ratio, width, height, s.bloom, renderer.extensions.has('EXT_color_buffer_float'), s.performanceMode);
     jumpEffect.configure(effectiveQuality,s.reduced);
+    const cinematicShadows=effectiveQuality==='High'&&!s.performanceMode;cinema.configure(cinematicShadows);cockpit.configureEnvironment(cinema.panorama,cinematicShadows);
     configuration = `${s.quality}/${s.bloom}/${s.performanceMode}/${s.adaptive}/${s.reduced}`;
   };
   const visibility=()=>{clock.getDelta();controller.reset(true);events.onAudio?.(0,0,true);};
@@ -96,7 +99,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     ship.quaternion.copy(controller.shipQuaternion); camera.quaternion.copy(controller.lookQuaternion);
     cabinTint.copy(space.tint).lerp(jumpWhite,jump.charge*.3);
     hull.update(s.cockpit,controller.speed);
-    cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit);
+    cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');
     jumpEffect.update(s.paused?0:Math.min(delta,.1),visualEnergy,space.tint);
     if (bloomPass) bloomPass.strength = s.bloom * (s.mode === 'Meditation' ? .45 : .8+visualEnergy*.2);
     // A paused scene has no flight animation; keep transitions responsive at 15 FPS.
@@ -109,7 +112,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   animate();
   return () => {
     disposed = true; cancelAnimationFrame(frame); input.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
-    events.onAudio?.(0,0,true);disposeComposer(); cockpit.dispose(); hull.dispose(); space.dispose();
+    events.onAudio?.(0,0,true);disposeComposer(); cockpit.dispose(); hull.dispose(); space.dispose();cinema.dispose();
     const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
     scene.traverse(object => {
       if (object instanceof T.Mesh || object instanceof T.Points || object instanceof T.Line) {

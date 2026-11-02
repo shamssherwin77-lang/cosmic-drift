@@ -1,28 +1,15 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { aerospaceFinish } from './finish';
 
 /** Pilot-scale panoramic canopy. All instruments are ship-space geometry, in six batches including glazing. */
 export function createCockpit(ship: T.Group) {
   const cabin = new T.Group(); cabin.name = 'enclosed-flight-deck'; ship.add(cabin);
   const tintUniform = { value: new T.Color('#ae80f0') }, brightnessUniform = { value: 1 };
-  const surface = (color: string, polish: number) => new T.ShaderMaterial({
-    uniforms: { baseColor: { value: new T.Color(color) }, tint: tintUniform, brightness: brightnessUniform, polish: { value: polish } },
-    vertexShader: 'varying vec3 point,faceNormal;void main(){point=position;faceNormal=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec3 point,faceNormal;uniform vec3 baseColor,tint;uniform float brightness,polish;
-      float hash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
-      void main(){vec3 n=normalize(faceNormal),v=normalize(-point),l=normalize(vec3(0.,1.8,-1.)-point);
-      float diffuse=max(0.,dot(n,l)),spec=pow(max(0.,dot(n,normalize(l+v))),38.);
-      float wear=step(.995,hash(floor(point*240.)))*.02;
-      float brushed=sin(point.z*360.+point.x*170.)*.012;
-      float rim=pow(1.-abs(dot(n,v)),3.);
-      vec3 color=baseColor*(.65+diffuse*.85+brushed)+vec3(.34,.44,.49)*spec*polish;
-      color+=tint*(rim*.024)+vec3(.25,.35,.35)*wear;
-      gl_FragColor=vec4(color*brightness,1.);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-      }`,
-  });
-  const metal = surface('#141d23', .3), trim = surface('#2b393e', .5), dark = surface('#070b10', .12);
+  const surface=(color:string,metalness:number,roughness:number)=>aerospaceFinish(new T.MeshStandardMaterial({color,metalness,roughness,envMapIntensity:metalness>.7?1.2:.75}),2.4);
+  const metal=surface('#27343f',.48,.42),trim=surface('#82949d',.85,.26),dark=surface('#0c141d',.16,.68);
+  const metalBase=metal.color.clone(),trimBase=trim.color.clone(),darkBase=dark.color.clone();
   const edge = new T.MeshBasicMaterial({ color: '#52d9d5' });
   const batches = new Map<T.Material, T.BufferGeometry[]>();
   let instruments = false;
@@ -32,7 +19,7 @@ export function createCockpit(ship: T.Group) {
     if (instruments) { g.scale(.72, .58, .9); g.translate(0, -.798, -.3); }
     if (!batches.has(m)) batches.set(m, []); batches.get(m)!.push(g); };
   function box(m: T.Material, x: number, y: number, z: number, w: number, h: number, d: number, rx = 0, ry = 0, rz = 0) {
-    const g = new T.BoxGeometry(w, h, d); g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); g.translate(x, y, z); add(g, m);
+    const g = new RoundedBoxGeometry(w, h, d, 1, Math.min(w,h,d)*.12); g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); g.translate(x, y, z); add(g, m);
   }
   function beam(m: T.Material, a: T.Vector3, b: T.Vector3, radius: number) {
     const g = new T.CylinderGeometry(radius, radius, a.distanceTo(b), 8);
@@ -127,7 +114,19 @@ export function createCockpit(ship: T.Group) {
   box(metal, 0, -1.12, 1.0, 1.12, .92, .28, -.13);
   box(dark, 0, -1.1, .82, .91, .78, .14, -.13);
   // Glazing is a single lightweight batch. It transmits the actual world in every pane.
-  const glass = new T.MeshBasicMaterial({ color: '#a0d9e1', transparent: true, opacity: .025, depthWrite: false, side: T.DoubleSide });
+  const glassUniforms={reflection:{value:null as T.Texture|null},hasReflection:{value:0},strength:{value:.06},tint:tintUniform};
+  const glass=new T.ShaderMaterial({uniforms:glassUniforms,transparent:true,depthWrite:false,side:T.DoubleSide,
+    vertexShader:'varying vec3 panePoint,paneNormal;void main(){panePoint=position;paneNormal=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:`varying vec3 panePoint,paneNormal;uniform sampler2D reflection;uniform float hasReflection,strength;uniform vec3 tint;
+    void main(){vec3 v=normalize(-panePoint),n=normalize(paneNormal);float facing=abs(dot(n,v));vec3 r=reflect(-v,n);
+    vec2 uv=vec2(atan(r.z,r.x)/6.2831853+.5,asin(clamp(r.y,-1.,1.))/3.14159265+.5);
+    vec3 environment=hasReflection>.5?texture2D(reflection,uv).rgb:vec3(.08,.15,.2);
+    float fresnel=pow(1.-facing,3.);float reflectionAlpha=.008+strength*(.12+fresnel);
+    float ghost=exp(-pow((panePoint.y+.7)*5.,2.))*pow(max(0.,sin(panePoint.x*8.)),14.);
+    gl_FragColor=vec4(environment*.8+tint*.025+vec3(.04,.25,.24)*ghost,reflectionAlpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    }`});
   const pane = (x: number, y: number, z: number, w: number, h: number, rx = 0, ry = 0) => {
     const g = new T.PlaneGeometry(w, h); g.rotateX(rx); g.rotateY(ry); g.translate(x, y, z); add(g, glass);
   };
@@ -174,6 +173,11 @@ export function createCockpit(ship: T.Group) {
   for (let i = 0; i < 12; i++) { ctx.fillStyle = switches[i % 5]; ctx.fillRect(20 + i * 45, 900, 31, 16); text(i % 3 === 0 ? 'ARM' : 'ON', 22 + i * 45, 935, 8); }
   const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; texture.anisotropy = 2;
   const screenMaterial = new T.MeshBasicMaterial({ map: texture, color: '#d8fff5', side: T.DoubleSide });
+  const screenTime={value:0};
+  screenMaterial.onBeforeCompile=shader=>{shader.uniforms.screenTime=screenTime;shader.fragmentShader='uniform float screenTime;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+    vec2 radar=vMapUv-vec2(.3125,.819);float a=atan(radar.y,radar.x);float sweep=pow(max(0.,cos(a-screenTime*.34)),32.)*(1.-smoothstep(.04,.11,length(radar)));
+    diffuseColor.rgb+=vec3(.03,.24,.21)*sweep*step(.64,vMapUv.y);diffuseColor.rgb*=.965+.035*sin(vMapUv.y*1024.*3.14159);
+  `);};
   function display(x: number, y: number, z: number, w: number, h: number, rect: number[], rx = 0, ry = 0, rz = 0) {
     const g = new T.PlaneGeometry(w, h), uv = g.getAttribute('uv');
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (rect[0] + uv.getX(i) * rect[2]) / 1024, 1 - (rect[1] + (1 - uv.getY(i)) * rect[3]) / 1024);
@@ -204,14 +208,16 @@ export function createCockpit(ship: T.Group) {
     // Extrusions/tubes do not all carry matching attributes; normalize before merging.
     for (const part of parts) { if (part.index) { const expanded = part.toNonIndexed(); part.copy(expanded); expanded.dispose(); } part.deleteAttribute('uv1'); }
     const geometry = mergeGeometries(parts)!; parts.forEach(part => part.dispose());
-    const mesh = new T.Mesh(geometry, material); mesh.name = material === glass ? 'observation-glazing' : material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
+    const mesh = new T.Mesh(geometry, material); mesh.castShadow=material===metal||material===trim||material===dark;mesh.receiveShadow=mesh.castShadow; mesh.name = material === glass ? 'observation-glazing' : material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
   }
   return {
     group: cabin,
-    update(tint: T.Color, brightness: number, meditation: boolean, visible: boolean) {
+    configureEnvironment(texture:T.Texture,high:boolean){glassUniforms.reflection.value=texture;glassUniforms.hasReflection.value=1;glassUniforms.strength.value=high?.15:.045;},
+    update(tint: T.Color, brightness: number, meditation: boolean, visible: boolean, time=0) {
       cabin.visible = visible;
       const dim = meditation ? .5 : 1;
       tintUniform.value.copy(tint); brightnessUniform.value = brightness * dim;
+      metal.color.copy(metalBase).multiplyScalar(brightness*dim);trim.color.copy(trimBase).multiplyScalar(brightness*dim);dark.color.copy(darkBase).multiplyScalar(brightness*dim);screenTime.value=time;
       edge.color.set('#50d7ce').multiplyScalar(.7 * brightness * dim);
       screenMaterial.color.set('#d8fff5').multiplyScalar((.8 + brightness * .2) * (meditation ? .5 : 1));
     },

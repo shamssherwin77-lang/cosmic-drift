@@ -8,12 +8,12 @@ void main(){localPoint=position;worldPoint=(modelMatrix*vec4(position,1.)).xyz;s
 const fragment = /* glsl */`
 varying vec3 localPoint,surfaceNormal,worldPoint;
 uniform vec3 baseColor,detailColor,lightDirection;
-uniform float kind,alpha,seed;
+uniform float kind,alpha,seed,time;
 float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
 float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+1.),f.x),f.y),f.z);}
 void main(){
  if(alpha<.005)discard;
- if(kind>2.5){float activity=.9+noise(localPoint*8.+seed)*.12;gl_FragColor=vec4(baseColor*(1.5+activity),alpha);
+ if(kind>2.5){float activity=noise(localPoint*18.+seed+time*.012)*.55+noise(localPoint*47.+seed)*.15;float limb=sqrt(max(0.,dot(normalize(surfaceNormal),normalize(cameraPosition-worldPoint))));gl_FragColor=vec4(baseColor*(.8+activity)*(.62+limb*.7)*1.45,alpha);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
  return;}
@@ -39,7 +39,7 @@ export function createBodies(scene: T.Scene) {
   const makeBody = (kind: number) => {
     const material = new T.ShaderMaterial({ uniforms: {
       baseColor: { value: new T.Color('#718fa6') }, detailColor: { value: new T.Color('#c7c6b0') }, kind: { value: kind },
-      alpha: { value: 1 }, seed: { value: 1 }, lightDirection: { value: new T.Vector3(-.65, .4, .75) },
+      alpha: { value: 1 }, seed: { value: 1 }, time: { value: 0 }, lightDirection: { value: new T.Vector3(-.65, .4, .75) },
     }, vertexShader: vertex, fragmentShader: fragment, transparent: true, depthWrite: true });
     const mesh = new T.Mesh(high, material); mesh.renderOrder = 4; mesh.userData.kind = kind > 2.5 ? 'star' : kind > 1.5 ? 'rocky-body' : 'planet'; group.add(mesh); return mesh;
   };
@@ -113,7 +113,7 @@ export function createBodies(scene: T.Scene) {
         mesh.position.copy(planet.position).add(moonOffset); mesh.scale.setScalar(Math.max(12, radius * .18));
         mesh.material.uniforms.alpha.value = planet.material.uniforms.alpha.value;
       });
-      place(star, layout.center, layout.starRadius, position); star.geometry = quality === 'High' ? high : low; star.visible = true;
+      place(star, layout.center, layout.starRadius, position); star.geometry = quality === 'High' ? high : low; star.visible = true;star.material.uniforms.time.value=time;
       star.material.uniforms.alpha.value = T.MathUtils.smoothstep(star.position.length() / layout.starRadius, 1.05, 1.4) * visibility;
       glow.position.copy(star.position); glow.scale.setScalar(layout.starRadius * 8); glow.visible = true; glow.material.uniforms.alpha.value = star.material.uniforms.alpha.value;
       ring.visible = true; ring.position.copy(planets[1].position); ring.scale.setScalar(layout.planets[1].radius); ring.quaternion.copy(orientation).multiply(ringTilt); ring.material.uniforms.alpha.value = planets[1].material.uniforms.alpha.value;

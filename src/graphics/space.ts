@@ -108,6 +108,8 @@ export function createSpace(scene: T.Scene) {
   });
   const hemisphere = new T.HemisphereLight('#b7c6ef', '#080e1d', 1.6); scene.add(hemisphere);
   const sun = new T.DirectionalLight('#dae6ff', 2.8); sun.position.set(-3, 4, 1); scene.add(sun);
+  sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-22;sun.shadow.camera.right=22;sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;sun.shadow.camera.near=.5;sun.shadow.camera.far=120;sun.shadow.bias=-.00015;sun.shadow.normalBias=.018;
+  const rim=new T.DirectionalLight('#628bb2',.65);rim.position.set(4,2,3);scene.add(rim);
 
   return {
     tint: shared.tint.value,
@@ -143,12 +145,14 @@ export function createSpace(scene: T.Scene) {
       relativeQ.copy(renderedQ).invert().multiply(currentQ);rotationMatrix.makeRotationFromQuaternion(relativeQ);reprojection.setFromMatrix4(rotationMatrix);
     },
     dispose() {
-      target.dispose(); bodies.dispose();
+      target.dispose(); bodies.dispose();sun.shadow.dispose();
       const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
       atmosphere.traverse(object => { if(object instanceof T.Mesh) { geometries.add(object.geometry); materials.add(object.material as T.Material); } });
       geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose());
     },
     configure(quality: Quality, pixelRatio: number, width: number, height: number, bloom: number, hdr: boolean, performanceMode = false) {
+      sun.castShadow=quality==='High'&&!performanceMode;
+      if(!sun.castShadow&&sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
       cacheDirty = true; interval = performanceMode ? 1/15 : quality==='Low' ? 1/20 : quality==='Medium' ? 1/24 : 1/30;
       const profile = qualityProfiles[quality]; bodies.configure(quality); shared.octaves.value = profile.octaves;
       const type = hdr && quality !== 'Low' ? T.HalfFloatType : T.UnsignedByteType;
@@ -165,6 +169,7 @@ export function createSpace(scene: T.Scene) {
     },
     update(dt: number, time: number, region: number, position: T.Vector3, energy: number) {
       relativePosition.copy(position).sub(origin).applyQuaternion(inverseOrientation);fieldPosition.copy(relativePosition); bodies.update(dt,time,region,position);
+      const stellar=bodies.lightAt(position);sun.position.copy(stellar.direction).multiplyScalar(45);sun.color.lerp(stellar.color,1-Math.exp(-dt*1.5));sun.intensity=T.MathUtils.damp(sun.intensity,stellar.intensity,1.5,dt);rim.color.copy(shared.tint.value).lerp(new T.Color('#829fc1'),.65);
       const target = regions[region], palette = palettes[region], a = 1 - Math.exp(-dt * .55);
       shared.time.value = time;
       shared.tint.value.lerp(palette.tint, a); shared.second.value.lerp(palette.second, a); shared.accent.value.lerp(palette.accent, a);

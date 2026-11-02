@@ -20,5 +20,5 @@ test('exterior wings are visible through side windows, follow the ship and leave
   });
   result.sideHits.forEach(side=>{expect(side.hull).toBeGreaterThan(0);expect(side.clear).toBe(true);});
   expect(result.forward).toBe(0);expect(result.gazeMovedHull).toBe(false);expect(result.followsShip).toBe(true);
-  expect(result.batches).toBeLessThanOrEqual(5);expect(result.hidden).toBe(true);expect(result.size).toBeGreaterThan(20);expect(result.error).toBe(0);expect(errors).toEqual([]);
+  expect(result.batches).toBeLessThanOrEqual(6);expect(result.hidden).toBe(true);expect(result.size).toBeGreaterThan(20);expect(result.error).toBe(0);expect(errors).toEqual([]);
 });

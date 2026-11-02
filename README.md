@@ -127,7 +127,7 @@ the old procedural tracks migrate to the corresponding real recordings.
 A low-profile exterior hull, swept wings, rear deck, fins and navigation strips
 are attached to the ship and visible through the side/rear observation windows.
 Passenger free-look does not rotate the exterior; Show cockpit hides both interior
-and exterior geometry. The model uses five material batches and no downloaded assets.
+and exterior geometry. The model uses six material batches and no downloaded assets.
 
 The universe streams 27 deterministic systems with 8–12 planets, eight moons,
 a primary star/corona, a planetary ring and an instanced asteroid belt per system.
@@ -140,3 +140,21 @@ Cruise speed is displayed in **game units per second (u/s)**, not km/s. Distance
 stellar sizes and transit times are deliberately compressed for relaxed exploration.
 The region display and mobile Controls panel show the current passage and a next
 system in the ship's forward direction, with its distance in game units.
+
+
+### Cinematic ship finish
+
+Ship surfaces now use PBR metal/paint finishes with brushed microstructure,
+panel seams and restrained edge wear. A shared, filtered environment provides
+reflection lighting; the closest system star supplies the directional key light.
+The instrument glow contributes local cabin lighting. Canopy glass has lightweight
+environment reflections, while the navigation screen has a slow radar sweep.
+Wings include beveled armor, fasteners, vents, hull markings and rounded engine
+housings. Stellar surfaces have granulation and limb shading.
+
+Desktop **High** quality enables a 1024px directional shadow map and stronger glass
+reflections; **Cinematic** lighting is the brightest presentation preset. Low and
+Medium retain the material treatment without the shadow-map pass. Devices without
+floating-point render-target support fall back to direct ship lighting. Reflection
+lighting is a generated environment, not ray-traced or screen-space scene reflection.
+The cinematic resource test verifies quality switching and complete GPU cleanup.

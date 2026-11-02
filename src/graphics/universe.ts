@@ -35,6 +35,7 @@ export function createUniverse(scene: T.Scene) {
     fragmentShader: `varying vec3 vColor;varying float visibility;void main(){float d=length(gl_PointCoord-.5)*2.;gl_FragColor=vec4(vColor*1.6,exp(-d*d*5.)*visibility);}`,
   });
   const beacons = new T.Points(markerGeometry, markerMaterial); beacons.frustumCulled = false; beacons.renderOrder = 3; markers.add(beacons);
+  const illumination={direction:new T.Vector3(-.5,.7,-.3),color:new T.Color('#d9e6ff'),intensity:2};
   let cell = '', quality = 'Medium';
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position), key = `${x}/${y}/${z}`;
@@ -80,6 +81,12 @@ export function createUniverse(scene: T.Scene) {
           object.visible = object.visible && fade > 0;
         }
       }
+    },
+    lightAt(position:T.Vector3){
+      let nearest=slots[0].sector!,distance=Infinity;
+      for(const slot of slots){if(!slot.sector)continue;const d=slot.sector.starWorld.distanceToSquared(position);if(d<distance){nearest=slot.sector;distance=d;}}
+      if(nearest){illumination.direction.copy(nearest.starWorld).sub(position).normalize();illumination.color.copy(nearest.starColor);illumination.intensity=1.2+2.4/(1+distance/25000000);}
+      return illumination;
     },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
       forward.set(0,0,-1).applyQuaternion(heading);
