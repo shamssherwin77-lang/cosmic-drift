@@ -121,3 +121,22 @@ players are used for crossfading. Pause/mute stops the recording after a fade an
 resume preserves its position. Load failures are visible and retryable. Mixer
 preferences remain local; master sound starts off after reload. Preferences from
 the old procedural tracks migrate to the corresponding real recordings.
+
+### Exterior and richer system travel
+
+A low-profile exterior hull, swept wings, rear deck, fins and navigation strips
+are attached to the ship and visible through the side/rear observation windows.
+Passenger free-look does not rotate the exterior; Show cockpit hides both interior
+and exterior geometry. The model uses five material batches and no downloaded assets.
+
+The universe streams 27 deterministic systems with 8–12 planets, eight moons,
+a primary star/corona, a planetary ring and an instanced asteroid belt per system.
+Distant systems have a fixed pool of 343 stellar beacons that match the positions
+and colors of the real stars encountered on approach. Sectors are 14,000 game
+units apart. Near, low and distant sphere geometry is reused; GPU object pools
+remain bounded as travel continues. Returning recreates the same system.
+
+Cruise speed is displayed in **game units per second (u/s)**, not km/s. Distances,
+stellar sizes and transit times are deliberately compressed for relaxed exploration.
+The region display and mobile Controls panel show the current passage and a next
+system in the ship's forward direction, with its distance in game units.

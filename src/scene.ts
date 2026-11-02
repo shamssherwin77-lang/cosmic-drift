@@ -9,12 +9,14 @@ import { LightJump, type JumpPhase } from './light-jump';
 import { createJumpEffect } from './graphics/jump-effect';
 import { createSpace } from './graphics/space';
 import { createCockpit } from './graphics/cockpit';
+import { createHull } from './graphics/hull';
+import type { NavigationInfo } from './graphics/universe';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
 export { regions } from './graphics/config';
 
 export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; worldSeed?: number };
 
-export type JumpEvents={jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
+export type JumpEvents={onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
 export function createScene(el: HTMLDivElement, get: () => Flight, controller: FlightController, joystick: HTMLElement, events:JumpEvents = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setClearColor('#040710');
@@ -23,17 +25,18 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   renderer.toneMappingExposure = lightingProfiles.Balanced.exposure;
   el.appendChild(renderer.domElement);
   const scene = new T.Scene();
-  const camera = new T.PerspectiveCamera(68, 1, .1, 16000);
+  const camera = new T.PerspectiveCamera(68, 1, .1, 50000);
   const ship = new T.Group(); ship.position.z = 5; ship.add(camera); scene.add(ship);
   const jump=events.jump ?? new LightJump();let lastPhase=jump.phase;
   const runtime={...get()};
   const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||jump.busy;return runtime;};
   const space = createSpace(scene);
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
-  const cockpit = createCockpit(ship);
+  const cockpit = createCockpit(ship), hull = createHull(ship);
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput);
   const clock = new T.Clock(), budget = new FrameBudget();
   let lastQuality = get().quality, lastPerformance = get().performanceMode, lastAdaptive = get().adaptive;
+  let nextNavigation=0;
   let frame = 0, time = 0, pausedRenderTime = 0, configuration = '', disposed = false;
   let composer: EffectComposer | null = null, bloomPass: UnrealBloomPass | null = null;
   const disposeComposer = () => {
@@ -89,8 +92,10 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     renderer.toneMappingExposure = T.MathUtils.damp(renderer.toneMappingExposure, lighting.exposure * regions[renderRegion].exposure, .8, graphicsDt);
     space.setJump(visualEnergy,jump.veil);
     space.update(graphicsDt, time, renderRegion, controller.position, lighting.nebula);
+    if(time>=nextNavigation){events.onNavigation?.(space.navigation(controller.position,controller.shipQuaternion));nextNavigation=time+.5;}
     ship.quaternion.copy(controller.shipQuaternion); camera.quaternion.copy(controller.lookQuaternion);
     cabinTint.copy(space.tint).lerp(jumpWhite,jump.charge*.3);
+    hull.update(s.cockpit,controller.speed);
     cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit);
     jumpEffect.update(s.paused?0:Math.min(delta,.1),visualEnergy,space.tint);
     if (bloomPass) bloomPass.strength = s.bloom * (s.mode === 'Meditation' ? .45 : .8+visualEnergy*.2);
@@ -104,7 +109,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   animate();
   return () => {
     disposed = true; cancelAnimationFrame(frame); input.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
-    events.onAudio?.(0,0,true);disposeComposer(); cockpit.dispose(); space.dispose();
+    events.onAudio?.(0,0,true);disposeComposer(); cockpit.dispose(); hull.dispose(); space.dispose();
     const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
     scene.traverse(object => {
       if (object instanceof T.Mesh || object instanceof T.Points || object instanceof T.Line) {

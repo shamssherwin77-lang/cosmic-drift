@@ -11,6 +11,8 @@ test('six-axis travel reaches fixed landmarks and recreates the same sectors on 
     world.configure('Low'); world.update(.1, 0, 0, p);
     const group = () => scene.children.find(g => g.children[0]?.position.distanceTo(new T.Vector3()) < 8000);
     const originGroup = group();
+    const starSystems=scene.children.filter(g=>g.name==='regional-celestial-bodies');
+    const inventories=starSystems.map(g=>({stars:g.children.filter(o=>o.userData.kind==='star').length,planets:g.children.filter(o=>o.visible&&['planet','rocky-body'].includes(o.userData.kind)).length,moons:g.children.filter(o=>o.userData.kind==='moon').length}));
     const snapshot = g => g.children.filter(o => o.userData.kind).map(o => ({
       position: o.position.clone().add(p).toArray(), radius: o.scale.x,
       color: o.material.uniforms.baseColor.value.getHex(), seed: o.material.uniforms.seed.value,
@@ -37,13 +39,15 @@ test('six-axis travel reaches fixed landmarks and recreates the same sectors on 
     const returned = scene.children.find(g => g.children[0]?.material.uniforms.seed.value === before[0].seed && g.children[0].position.distanceTo(target) < .001);
     const after = returned && snapshot(returned);
     world.dispose();
-    return { before, after, counts, palettes, initialDistance, reachedDistance, reachedWorldPosition, remaining: scene.children.length };
+    return { inventories, before, after, counts, palettes, initialDistance, reachedDistance, reachedWorldPosition, remaining: scene.children.length };
   });
+  expect(result.inventories).toHaveLength(27);
+  result.inventories.forEach(i=>{expect(i.stars).toBe(1);expect(i.moons).toBe(8);});
   expect(result.reachedDistance).toBeLessThan(210);
   expect(result.reachedDistance).toBeLessThan(result.initialDistance * .5);
   result.reachedWorldPosition.forEach((n,i)=>expect(n).toBeCloseTo(result.before[0].position[i],8));
   expect(result.after).toEqual(result.before);
   expect(new Set(result.palettes).size).toBe(6);
-  expect(result.counts).toEqual(Array(6).fill(27));
+  expect(result.counts).toEqual(Array(6).fill(28));
   expect(result.remaining).toBe(0);
 });

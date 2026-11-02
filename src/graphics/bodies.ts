@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { systemLayout } from './system-layout';
 
 const vertex = /* glsl */`
 varying vec3 localPoint, surfaceNormal, worldPoint;
@@ -12,6 +13,10 @@ float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)
 float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+1.),f.x),f.y),f.z);}
 void main(){
  if(alpha<.005)discard;
+ if(kind>2.5){float activity=.9+noise(localPoint*8.+seed)*.12;gl_FragColor=vec4(baseColor*(1.5+activity),alpha);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+ return;}
  vec3 p=localPoint;float n=noise(p*5.+seed),fine=noise(p*17.+seed);
  float bands=.5+.25*sin(p.y*55.+n*5.)+.16*sin(p.y*19.+fine*2.);
  float terrain=noise(p*3.+seed)*.6+n*.28+fine*.12;float land=smoothstep(.46,.6,terrain);
@@ -26,88 +31,99 @@ void main(){
  #include <colorspace_fragment>
 }
 `;
-// Local region arrangements are blended; travel is always relative to the same ship position.
-const arrangements = [
-  [[-480,-45,-1500],[1250,380,-4300],[-2200,950,-8200],[500,1600,-12000],[2450,-500,-9200],[-700,850,-7900]],
-  [[-540,-120,-1850],[1300,300,-4800],[-1450,420,-5700],[500,-90,-10800],[2600,700,-9600],[-850,900,-8200]],
-  [[480,-100,-1800],[-1500,380,-3800],[1750,300,-6800],[-500,200,-10500],[3000,-500,-9600],[-1100,900,-8500]],
-  [[-470,35,-1900],[1350,500,-4600],[-2000,-50,-7200],[700,120,-10500],[2400,-350,-8500],[-1000,850,-9200]],
-  [[-800,-200,-3500],[1900,430,-6800],[-2600,150,-9000],[200,300,-12000],[2900,-500,-10000],[-1200,1000,-10500]],
-].map(region => region.map(p => new T.Vector3(...p as [number,number,number])));
-const bodyCounts=[6,5,6,5,4];
-const radii = [[135,310,180,570,150,90],[150,310,190,500,170,100],[135,360,210,650,190,95],[160,340,210,580,170,100],[180,420,260,820,180,100]];
-const palettes = [
-  ['#315e9c','#9c8fbd','#77758e','#3a4d6a','#6a6c7c','#8b829c'],
-  ['#276992','#8e9eae','#8b8e96','#31495f','#858d97','#6a849f'],
-  ['#857260','#b5956e','#92877a','#655c54','#8a7a67','#b3a38b'],
-  ['#2b7886','#7c9ba9','#7b8d94','#385765','#849b9e','#6f8e9f'],
-  ['#46576e','#6d768b','#6c7180','#293c58','#6d788a','#56697f'],
-].map(region=>region.map(color=>new T.Color(color)));
-const detailPalettes = palettes.map(region=>region.map(color=>color.clone().lerp(new T.Color('#cfbd9c'),.38)));
 
+/** A deterministic star system. Quality changes tessellation and asteroid count, never identity. */
 export function createBodies(scene: T.Scene) {
-  const group=new T.Group();group.name='regional-celestial-bodies';scene.add(group);
-  const geometry=new T.SphereGeometry(1,32,20);
-  const makeBody=(kind:number,index:number)=>{
-    const material=new T.ShaderMaterial({uniforms:{baseColor:{value:palettes[0][index].clone()},detailColor:{value:detailPalettes[0][index].clone()},kind:{value:kind},alpha:{value:1},seed:{value:index*7.3+2.1},lightDirection:{value:index===3?new T.Vector3(-.85,.2,-.6):new T.Vector3(-.65,.4,index===1?.28:.75)}},vertexShader:vertex,fragmentShader:fragment,transparent:true,depthWrite:true});
-    const mesh=new T.Mesh(geometry,material);mesh.renderOrder=4;mesh.userData.kind=kind>1.5?'rocky-body':'planet';group.add(mesh);return mesh;
+  const group = new T.Group(); group.name = 'regional-celestial-bodies'; scene.add(group);
+  const high = new T.SphereGeometry(1, 32, 20), low = new T.SphereGeometry(1, 16, 10), far = new T.SphereGeometry(1, 8, 6);
+  const makeBody = (kind: number) => {
+    const material = new T.ShaderMaterial({ uniforms: {
+      baseColor: { value: new T.Color('#718fa6') }, detailColor: { value: new T.Color('#c7c6b0') }, kind: { value: kind },
+      alpha: { value: 1 }, seed: { value: 1 }, lightDirection: { value: new T.Vector3(-.65, .4, .75) },
+    }, vertexShader: vertex, fragmentShader: fragment, transparent: true, depthWrite: true });
+    const mesh = new T.Mesh(high, material); mesh.renderOrder = 4; mesh.userData.kind = kind > 2.5 ? 'star' : kind > 1.5 ? 'rocky-body' : 'planet'; group.add(mesh); return mesh;
   };
-  const planets=[0,1,2,2,2,2].map((kind,i)=>makeBody(kind,i));
-  const origins=arrangements[0].map(v=>v.clone());
-  const sizes=radii[0].slice();
-  const orientation=new T.Quaternion(),moonOffset=new T.Vector3();
-  const anchor=new T.Vector3(),jitter=planets.map(()=>new T.Vector3()),radiusFactors=new Float32Array(6).fill(1);let jumpEnergy=0;
-  const moons=[0,1,2].map((parent,i)=>{const mesh=makeBody(2,i+2);mesh.userData.kind='moon';return{mesh,parent,radius:[29,44,52][i]};});
-  const ringMaterial=new T.ShaderMaterial({
-    uniforms:{color:{value:new T.Color('#a5a091')},alpha:{value:1}},transparent:true,depthWrite:false,side:T.DoubleSide,
-    vertexShader:'varying vec2 point;void main(){point=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`varying vec2 point;uniform vec3 color;uniform float alpha;void main(){float r=length(point);float edge=smoothstep(1.32,1.42,r)*(1.-smoothstep(2.05,2.2,r));float bands=.35+.25*sin(r*180.)+.2*sin(r*47.);gl_FragColor=vec4(color*.65,edge*max(.1,bands)*alpha);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}`,
-  });
-  const ring=new T.Mesh(new T.RingGeometry(1.32,2.2,64),ringMaterial);ring.rotation.set(1.12,.2,-.27);ring.renderOrder=5;group.add(ring);const ringOrientation=ring.quaternion.clone();
-  const rocksMaterial=new T.MeshStandardMaterial({color:'#76818c',roughness:1,metalness:0,transparent:true,depthWrite:false});
-  const rocks=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),rocksMaterial,72);rocks.name='distant-rock-cluster';group.add(rocks);
-  const dummy=new T.Object3D();let seed=8353;const random=()=>{seed=seed*16807%2147483647;return(seed-1)/2147483646;};
-  for(let i=0;i<72;i++){dummy.position.set((random()-.5)*700,(random()-.5)*180,(random()-.5)*450);dummy.rotation.set(random()*3,random()*3,random()*3);const scale=4+random()*10;dummy.scale.set(scale,scale*.7,scale*1.2);dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);}
-  rocks.instanceMatrix.needsUpdate=true;rocks.computeBoundingSphere();
-  const clusterOrigins=[new T.Vector3(-1000,80,-2800),new T.Vector3(1300,-180,-3600),new T.Vector3(-1700,-180,-4300),new T.Vector3(1600,80,-3900),new T.Vector3(-2200,-250,-6500)];
-  const cluster=clusterOrigins[0].clone();let planetCount=6,moonCount=3;
+  const planets = Array.from({ length: 12 }, () => makeBody(0));
+  const moons = Array.from({ length: 8 }, (_, i) => { const mesh = makeBody(2); mesh.userData.kind = 'moon'; return { mesh, parent: i }; });
+  const star = makeBody(3); star.name = 'primary-star';
+  const glow = new T.Mesh(new T.PlaneGeometry(1, 1), new T.ShaderMaterial({
+    uniforms: { baseColor: { value: new T.Color() }, alpha: { value: 1 } }, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+    vertexShader: `varying vec2 vUv;void main(){vUv=uv;vec4 center=modelViewMatrix*vec4(0.,0.,0.,1.);vec2 size=vec2(length(modelMatrix[0].xyz),length(modelMatrix[1].xyz));center.xy+=position.xy*size;gl_Position=projectionMatrix*center;}`,
+    fragmentShader: `varying vec2 vUv;uniform vec3 baseColor;uniform float alpha;void main(){float r=length(vUv-.5)*2.;float a=exp(-r*r*7.)*(1.-smoothstep(.7,1.,r));gl_FragColor=vec4(baseColor*1.3,a*alpha*.45);}`,
+  })); glow.name = 'stellar-corona'; glow.frustumCulled = false; glow.renderOrder = 3.5; group.add(glow);
+  const ring = new T.Mesh(new T.RingGeometry(1.32, 2.2, 64), new T.ShaderMaterial({
+    uniforms: { color: { value: new T.Color('#b8afa0') }, alpha: { value: 1 } }, transparent: true, depthWrite: false, side: T.DoubleSide,
+    vertexShader: 'varying vec2 p;void main(){p=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: `varying vec2 p;uniform vec3 color;uniform float alpha;void main(){float r=length(p);float edge=smoothstep(1.32,1.42,r)*(1.-smoothstep(2.05,2.2,r));float bands=.35+.25*sin(r*180.)+.2*sin(r*47.);gl_FragColor=vec4(color*.7,edge*max(.1,bands)*alpha);}`,
+  })); ring.name = 'planetary-ring'; ring.renderOrder = 5; group.add(ring);
+  const ringTilt = new T.Quaternion().setFromEuler(new T.Euler(1.12, .2, -.27));
+  const rockMaterial = new T.MeshStandardMaterial({ color: '#7a858d', roughness: 1, transparent: true });
+  const rocks = new T.InstancedMesh(new T.IcosahedronGeometry(1, 0), rockMaterial, 96); rocks.name = 'distant-rock-cluster'; group.add(rocks);
+  const anchor = new T.Vector3(), orientation = new T.Quaternion(), relative = new T.Vector3(), moonOffset = new T.Vector3();
+  let layout = systemLayout(7123, 0), activeSeed = 7123, activeRegion = 0, initialized = false, quality = 'Medium', jumpEnergy = 0;
+  const reseed = (seed: number, region: number, position: T.Vector3, heading?: T.Quaternion) => {
+    activeSeed = seed; activeRegion = region; layout = systemLayout(seed, region); initialized = true;
+    anchor.copy(position); heading ? orientation.copy(heading) : orientation.identity(); group.userData.systemName = layout.name;
+    planets.forEach((planet, i) => {
+      const body = layout.planets[i], u = planet.material.uniforms;
+      u.baseColor.value.copy(body.color); u.detailColor.value.copy(body.color).lerp(new T.Color('#d0d0b0'), .5);
+      u.seed.value = body.seed; u.kind.value = body.kind;
+      u.lightDirection.value.copy(layout.center).sub(body.position).applyQuaternion(orientation).normalize();
+      planet.userData.kind = body.kind === 2 ? 'rocky-body' : 'planet';
+    });
+    moons.forEach(({ mesh, parent }, i) => {
+      mesh.material.uniforms.baseColor.value.copy(layout.planets[parent].color).lerp(new T.Color('#a4a5ac'), .7);
+      mesh.material.uniforms.detailColor.value.set('#b7b4ab'); mesh.material.uniforms.seed.value = layout.planets[parent].seed + i * 3.1;
+    });
+    star.material.uniforms.baseColor.value.copy(layout.starColor); star.material.uniforms.seed.value = seed % 1000;
+    glow.material.uniforms.baseColor.value.copy(layout.starColor);
+    ring.material.uniforms.color.value.copy(layout.planets[1].color).lerp(new T.Color('#e5d5b1'), .5);
+    let state = (seed ^ 0x51a7) >>> 0;
+    const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
+    const dummy = new T.Object3D();
+    for (let i = 0; i < 96; i++) {
+      const angle = random() * Math.PI * 2, radius = 2300 + random() * 650;
+      dummy.position.set(Math.cos(angle) * radius, (random() - .5) * 160, Math.sin(angle) * radius);
+      dummy.rotation.set(random() * 3, random() * 3, random() * 3); const size = 5 + random() * 13; dummy.scale.set(size, size * .7, size * 1.15);
+      dummy.updateMatrix(); rocks.setMatrixAt(i, dummy.matrix);
+    }
+    rocks.instanceMatrix.needsUpdate = true; rocks.computeBoundingSphere();
+  };
+  const place = (mesh: T.Mesh, center: T.Vector3, radius: number, position: T.Vector3) => {
+    mesh.position.copy(center).applyQuaternion(orientation).add(anchor).sub(position); mesh.scale.setScalar(radius);
+  };
   return {
     group,
-    setJump(energy:number){jumpEnergy=energy;},
-    reseed(seed:number,region:number,position:T.Vector3,heading?:T.Quaternion){
-      anchor.copy(position);heading?orientation.copy(heading):orientation.identity();let state=seed>>>0;const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
-      for(let i=0;i<planets.length;i++){
-        jitter[i].set((random()-.5)*900,(random()-.5)*500,(random()-.5)*1000);radiusFactors[i]=.72+random()*.56;
-        origins[i].copy(arrangements[region][i]).add(jitter[i]);sizes[i]=radii[region][i]*radiusFactors[i];
-        planets[i].material.uniforms.seed.value=random()*90+1;
-        if(i===0||i===4)planets[i].material.uniforms.kind.value=random()>.5?0:2;
-      }
-      for(const moon of moons)moon.mesh.material.uniforms.seed.value=random()*90+1;
-      cluster.copy(clusterOrigins[region]);cluster.x+=(random()-.5)*1300;cluster.y+=(random()-.5)*300;
+    reseed,
+    setJump(value: number) { jumpEnergy = value; },
+    configure(value: string) { quality = value; rocks.count = value === 'Low' ? 48 : value === 'Medium' ? 72 : 96; },
+    update(_dt: number, time: number, region: number, position: T.Vector3) {
+      if (!initialized || region !== activeRegion) reseed(activeSeed, region, anchor.clone(), orientation.clone());
+      const visibility = 1 - T.MathUtils.smoothstep(jumpEnergy, .12, .65);
+      planets.forEach((planet, i) => {
+        const body = layout.planets[i]; planet.visible = i < layout.count;
+        place(planet, body.position, body.radius, position); planet.rotation.y = time * .002 + i * .5;
+        planet.geometry = planet.position.lengthSq() > 6000 ** 2 ? far : quality === 'High' ? high : low;
+        planet.material.uniforms.alpha.value = T.MathUtils.smoothstep(planet.position.length() / body.radius, 1.05, 1.4) * visibility;
+      });
+      moons.forEach(({ mesh, parent }, i) => {
+        const planet = planets[parent], radius = layout.planets[parent].radius;
+        mesh.visible = planet.visible; mesh.geometry = planet.geometry;
+        moonOffset.set(radius * (2.2 + i * .12), radius * .6, radius * .7).applyQuaternion(orientation);
+        mesh.position.copy(planet.position).add(moonOffset); mesh.scale.setScalar(Math.max(12, radius * .18));
+        mesh.material.uniforms.alpha.value = planet.material.uniforms.alpha.value;
+      });
+      place(star, layout.center, layout.starRadius, position); star.geometry = quality === 'High' ? high : low; star.visible = true;
+      star.material.uniforms.alpha.value = T.MathUtils.smoothstep(star.position.length() / layout.starRadius, 1.05, 1.4) * visibility;
+      glow.position.copy(star.position); glow.scale.setScalar(layout.starRadius * 8); glow.visible = true; glow.material.uniforms.alpha.value = star.material.uniforms.alpha.value;
+      ring.visible = true; ring.position.copy(planets[1].position); ring.scale.setScalar(layout.planets[1].radius); ring.quaternion.copy(orientation).multiply(ringTilt); ring.material.uniforms.alpha.value = planets[1].material.uniforms.alpha.value;
+      relative.copy(layout.center).applyQuaternion(orientation).add(anchor).sub(position); rocks.position.copy(relative); rocks.quaternion.copy(orientation); rocks.visible = true; rockMaterial.opacity = visibility;
     },
-    dispose(){
-      group.removeFromParent();
-      const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();
-      group.traverse(o=>{if(o instanceof T.Mesh){geometries.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);}});
-      rocks.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());
-    },
-    configure(quality:string){planetCount=6;moonCount=3;rocks.count=quality==='Low'?24:quality==='Medium'?48:72;},
-    update(dt:number,time:number,region:number,position:T.Vector3){
-      const a=1-Math.exp(-dt*.28),visibility=1-T.MathUtils.smoothstep(jumpEnergy,.12,.65);
-      for(let i=0;i<planets.length;i++){
-        const mesh=planets[i];origins[i].x=T.MathUtils.lerp(origins[i].x,arrangements[region][i].x+jitter[i].x,a);origins[i].y=T.MathUtils.lerp(origins[i].y,arrangements[region][i].y+jitter[i].y,a);origins[i].z=T.MathUtils.lerp(origins[i].z,arrangements[region][i].z+jitter[i].z,a);sizes[i]=T.MathUtils.lerp(sizes[i],radii[region][i]*radiusFactors[i],a);
-        mesh.visible=i<Math.min(planetCount,bodyCounts[region]);mesh.position.copy(origins[i]).applyQuaternion(orientation).add(anchor).sub(position);mesh.scale.setScalar(sizes[i]);mesh.rotation.y=time*.002+i*.5;
-        mesh.material.uniforms.baseColor.value.lerp(palettes[region][i],a);mesh.material.uniforms.detailColor.value.lerp(detailPalettes[region][i],a);
-        mesh.material.uniforms.alpha.value=T.MathUtils.smoothstep(mesh.position.length()/sizes[i],1.05,1.4)*visibility;
-      }
-      for(let i=0;i<moons.length;i++){
-        const {mesh,parent,radius}=moons[i],planet=planets[parent];mesh.visible=i<moonCount && planet.visible;mesh.scale.setScalar(radius);
-        moonOffset.set(sizes[parent]*1.8,sizes[parent]*.5,sizes[parent]*.4).applyQuaternion(orientation);mesh.position.copy(planet.position).add(moonOffset);
-        mesh.material.uniforms.alpha.value=planet.material.uniforms.alpha.value;
-        mesh.material.uniforms.baseColor.value.lerp(palettes[region][2],a);mesh.material.uniforms.detailColor.value.lerp(detailPalettes[region][2],a);
-      }
-      ring.visible=true;ring.quaternion.copy(orientation).multiply(ringOrientation);ring.position.copy(planets[1].position);ring.scale.setScalar(sizes[1]);ringMaterial.uniforms.alpha.value=planets[1].material.uniforms.alpha.value;ringMaterial.uniforms.color.value.lerp(palettes[region][1],a);
-      rocks.quaternion.copy(orientation);rocks.position.copy(cluster).applyQuaternion(orientation).add(anchor).sub(position);rocksMaterial.opacity=visibility;rocks.visible=visibility>.005;rocksMaterial.color.lerp(palettes[region][2],a);
+    dispose() {
+      group.removeFromParent(); rocks.dispose();
+      const geometries = new Set<T.BufferGeometry>([high, low, far]), materials = new Set<T.Material>();
+      group.traverse(o => { if (o instanceof T.Mesh) { geometries.add(o.geometry); for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m); } });
+      geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose());
     },
   };
 }

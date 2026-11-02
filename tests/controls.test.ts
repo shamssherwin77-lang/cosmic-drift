@@ -198,3 +198,18 @@ test('free-look reaches rear and roof, crosses yaw wrap smoothly and recenters w
   near(c.shipQuaternion.angleTo(heading),0);
   c.centerLook();advance(c,s,3);assert.ok(c.lookQuaternion.angleTo(heading)<.001);
 });
+
+import { systemLayout } from '../src/graphics/system-layout.ts';
+test('star systems have stable identities, varied populations and bounded footprints',()=>{
+  const a=systemLayout(7123,0),b=systemLayout(7123,0);
+  assert.deepEqual(a,b);assert.equal(a.name,'Perseus Anchorage');
+  const signatures=new Set();
+  for(const seed of [1,2,3,41,7123,129991]){
+    const layout=systemLayout(seed,seed%5);
+    assert.ok(layout.count>=8&&layout.count<=12);assert.equal(layout.planets.length,12);
+    assert.ok(layout.starRadius>=300&&layout.starRadius<=500);
+    for(const planet of layout.planets)assert.ok(planet.position.distanceTo(layout.center)<4300);
+    signatures.add(JSON.stringify(layout.planets.map(p=>[p.position.toArray(),p.radius,p.color.getHex()])));
+  }
+  assert.equal(signatures.size,6);
+});
