@@ -96,7 +96,7 @@ test.describe('Android-style landscape touch input', () => {
     expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
     await page.getByLabel('Show cockpit',{exact:true}).scrollIntoViewIfNeeded();
     await page.getByRole('button',{name:'Close settings'}).tap();
-    await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
+    await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
     const stick=page.getByRole('group',{name:'Touch flight joystick'});await expect(stick).toBeVisible();
     const r=await stick.boundingBox();expect(r.y).toBeGreaterThan(45);expect(r.y+r.height).toBeLessThan(300);
     await expect(page.locator('canvas')).toBeVisible();
@@ -105,7 +105,7 @@ test.describe('Android-style landscape touch input', () => {
     await expect(page.locator('main')).toHaveClass(/controls-blocked/);
     await page.getByRole('button',{name:'Resume',exact:true}).tap();
     await page.screenshot({path:'test-results/landscape.png'});
-    await page.getByRole('button',{name:'Autopilot',exact:true}).tap();await expect(stick).not.toBeVisible();
+    await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Autopilot',exact:true}).tap();await expect(stick).not.toBeVisible();
     expect(errors).toEqual([]);
   });
 });

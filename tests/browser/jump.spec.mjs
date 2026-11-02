@@ -25,7 +25,7 @@ test.describe('mobile Light Jump',()=>{
   test.use({viewport:{width:915,height:412},hasTouch:true,isMobile:true,deviceScaleFactor:1});
   test('a held joystick is cleared, the button fits landscape, and meditation/reduced motion survive a jump',async({page,context})=>{
     test.setTimeout(90000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-    await freezeClock(page);await page.goto('/');await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();await advance(page,100);
+    await freezeClock(page);await page.goto('/');await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();await advance(page,100);
     const stick=page.getByRole('group',{name:'Touch flight joystick'}),r=await stick.boundingBox();
     const cdp=await context.newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:r.x+r.width*.8,y:r.y+r.height*.5}]});
     const button=page.getByRole('button',{name:/Light Jump/}),b=await button.boundingBox();expect(b.height).toBeGreaterThanOrEqual(38);expect(b.x+b.width).toBeLessThanOrEqual(915);expect(b.y+b.height).toBeLessThanOrEqual(412);
@@ -34,11 +34,11 @@ test.describe('mobile Light Jump',()=>{
     expect(await stick.evaluate(el=>el.style.getPropertyValue('--stick-x'))).toBe('0px');await expect(page.locator('main')).toHaveClass(/controls-blocked/);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await advance(page,10400);
     await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle');await expect(stick).toBeVisible();
-    await page.getByRole('button',{name:'Meditation mode',exact:true}).tap();
+    await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Meditation mode',exact:true}).tap();
     await page.getByRole('button',{name:'Settings',exact:true}).tap();await page.getByLabel('Reduced motion',{exact:true}).check();await page.getByRole('button',{name:'Close settings'}).tap();
     const seed=await page.locator('main').getAttribute('data-world-seed');await button.tap();await advance(page,10400);
     await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle');await expect(page.locator('main')).not.toHaveAttribute('data-world-seed',seed);
-    await expect(page.getByRole('button',{name:'Meditation mode',exact:true})).toHaveClass(/selected/);await expect(page.locator('.region-label h2')).toHaveText('Stellar Ocean');expect(errors).toEqual([]);
+    await expect(page.locator('main')).toHaveClass(/meditation/);await expect(page.locator('.region-label h2')).toHaveText('Stellar Ocean');expect(errors).toEqual([]);
   });
 });
 

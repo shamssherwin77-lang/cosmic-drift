@@ -80,7 +80,7 @@ test.describe('mobile audio selection',()=>{
     await page.getByRole('radio',{name:'Meditation Impromptu 01',exact:true}).check();
     const panel=page.locator('.panel');expect(await panel.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
     await page.getByRole('button',{name:'Close settings'}).tap();
-    await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
+    await page.getByRole('button',{name:'Open controls',exact:true}).tap();await page.getByRole('button',{name:'Manual Flight',exact:true}).tap();
     await expect(page.getByRole('group',{name:'Touch flight joystick'})).toBeVisible();
     expect(errors).toEqual([]);
   });
