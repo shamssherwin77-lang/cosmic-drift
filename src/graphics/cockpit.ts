@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-/** Pilot-scale panoramic canopy. All instruments are ship-space geometry, in five batches. */
+/** Pilot-scale panoramic canopy. All instruments are ship-space geometry, in six batches including glazing. */
 export function createCockpit(ship: T.Group) {
   const cabin = new T.Group(); cabin.name = 'enclosed-flight-deck'; ship.add(cabin);
   const tintUniform = { value: new T.Color('#ae80f0') }, brightnessUniform = { value: 1 };
@@ -25,7 +25,12 @@ export function createCockpit(ship: T.Group) {
   const metal = surface('#141d23', .3), trim = surface('#2b393e', .5), dark = surface('#070b10', .12);
   const edge = new T.MeshBasicMaterial({ color: '#52d9d5' });
   const batches = new Map<T.Material, T.BufferGeometry[]>();
-  const add = (g: T.BufferGeometry, m: T.Material) => { if (!batches.has(m)) batches.set(m, []); batches.get(m)!.push(g); };
+  let instruments = false;
+  const add = (g: T.BufferGeometry, m: T.Material) => {
+    // Compact the dashboard around floor level, keeping the horizon unobstructed.
+    // Apply the same transform to housings, controls and their display surfaces.
+    if (instruments) { g.scale(.72, .58, .9); g.translate(0, -.798, -.3); }
+    if (!batches.has(m)) batches.set(m, []); batches.get(m)!.push(g); };
   function box(m: T.Material, x: number, y: number, z: number, w: number, h: number, d: number, rx = 0, ry = 0, rz = 0) {
     const g = new T.BoxGeometry(w, h, d); g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); g.translate(x, y, z); add(g, m);
   }
@@ -59,13 +64,13 @@ export function createCockpit(ship: T.Group) {
     }
     // Low gunwales leave generous port and starboard views through the canopy.
     box(metal, side * 2.62, -1.52, -1.9, .65, .76, 4.0, 0, side * -.1);
-    beam(trim, new T.Vector3(side * 1.35, -.3, -3.18), new T.Vector3(side * 2.72, -1.4, .25), .075);
-    beam(metal, new T.Vector3(side * 1.48, -.38, -3.2), new T.Vector3(side * 2.85, -1.47, .35), .14);
+    beam(trim, new T.Vector3(side * 1.0, -1.1, -2.95), new T.Vector3(side * 2.72, -1.4, .25), .075);
+    beam(metal, new T.Vector3(side * 1.12, -1.15, -3.02), new T.Vector3(side * 2.85, -1.47, .35), .14);
     beam(trim, new T.Vector3(side * 2.9, -.95, -3.2), new T.Vector3(side * 3.12, -1.25, .5), .055);
-    beam(edge, new T.Vector3(side * 1.52, -.49, -3.1), new T.Vector3(side * 2.77, -1.54, .15), .009);
+    beam(edge, new T.Vector3(side * 1.16, -1.18, -2.98), new T.Vector3(side * 2.77, -1.54, .15), .009);
     for (let i = 0; i < 13; i++) {
       const t = i / 12;
-      box(trim, side * (1.48 + t * 1.33), -.4 - t * 1.08, -3.14 + t * 3.35, .035, .035, .028);
+      box(trim, side * (1.12 + t * 1.69), -1.15 - t * .33, -3.02 + t * 3.23, .035, .035, .028);
     }
   }
   arch(-3.35, 2.92, 3.62, .085, metal);
@@ -73,6 +78,7 @@ export function createCockpit(ship: T.Group) {
   arch(-3.29, 2.81, 3.53, .008, edge);
   arch(.7, 3.15, 3.9, .12, metal);
   beam(metal, new T.Vector3(0, 2.68, -3.35), new T.Vector3(0, 2.95, .8), .065);
+  instruments = true;
   // Raised instrument binnacle: rounded shoulders, lowered wings and a deep footwell.
   const outline = new T.Shape();
   outline.moveTo(-1.62, -1.85); outline.lineTo(-1.44, -.58);
@@ -115,6 +121,7 @@ export function createCockpit(ship: T.Group) {
     box(edge, side * 1.34, -1.82, -.45, .025, .025, .58);
     for (let i = 0; i < 18; i++) box(trim, side * 1.32, -1.91, -.9 + i * .085, .28, .014, .012);
   }
+  instruments = false;
   // A low seat back keeps the rear observation windows clear at eye level.
   box(dark, 0, -1.66, -.08, .99, .25, 1.4);
   box(metal, 0, -1.12, 1.0, 1.12, .92, .28, -.13);
@@ -172,6 +179,7 @@ export function createCockpit(ship: T.Group) {
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (rect[0] + uv.getX(i) * rect[2]) / 1024, 1 - (rect[1] + (1 - uv.getY(i)) * rect[3]) / 1024);
     g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz); g.translate(x, y, z); add(g, screenMaterial);
   }
+  instruments = true;
   display(0, -.13, -2.727, 1.07, .6, [0, 0, 640, 365], -.1);
   display(-.73, -.39, -2.72, .32, .36, [455, 663, 170, 190]);
   display(.73, -.39, -2.72, .32, .36, [675, 663, 170, 190]);
@@ -191,6 +199,7 @@ export function createCockpit(ship: T.Group) {
   }
   // Rivets along the instrument hood give small-scale depth without separate draw calls.
   for (const p of hoodPoints) { const g = new T.SphereGeometry(.022, 6, 4); g.translate(p.x, p.y, p.z + .055); add(g, trim); }
+  instruments = false;
   for (const [material, parts] of batches) {
     // Extrusions/tubes do not all carry matching attributes; normalize before merging.
     for (const part of parts) { if (part.index) { const expanded = part.toNonIndexed(); part.copy(expanded); expanded.dispose(); } part.deleteAttribute('uv1'); }

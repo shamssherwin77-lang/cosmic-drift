@@ -96,7 +96,7 @@ test('observation windows transmit the world on both sides, rear and roof with s
     const ship=new T.Group(),cabin=createCockpit(ship);ship.updateMatrixWorld(true);
     const opaque=cabin.group.children.filter(o=>o.isMesh&&!o.material.transparent),glass=cabin.group.getObjectByName('observation-glazing');
     const ray=new T.Raycaster();
-    const directions=[[1,0,0],[-1,0,0],[0,0,1],[.2,1,0],[0,.55,-1]];
+    const directions=[[1,0,0],[-1,0,0],[0,0,1],[.2,1,0],[0,.55,-1],[0,0,-1],[0,-.1,-1],[-.4,-.1,-1],[.4,-.1,-1]];
     const samples=directions.map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis).normalize());return{opaque:ray.intersectObjects(opaque).length,glass:ray.intersectObject(glass).length};});
     ray.set(new T.Vector3(),new T.Vector3(0,-1,0));const floor=ray.intersectObjects(opaque).length;
     const batches=cabin.group.children.length,transparent=glass.material.transparent,depthWrite=glass.material.depthWrite;
