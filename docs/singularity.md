@@ -11,12 +11,21 @@ Coordinates, disk orientation and exclusion distances do not change with quality
 
 ## Flight and consent
 
+After two completed ordinary Jumps, the next planned Jump offers the unique host
+if it has not been visited. This one-time discovery route uses the same world
+coordinates and advisory, without adding a region picker or duplicating the hole.
+Previewing navigation never advances journey progress.
+
 The scene exposes a synchronous Jump planner to the UI. Before entering a hazardous
 system, an accessible, focus-contained advisory stops flight, suppresses normal
 sound layers and offers Continue or Cancel. No Jump clock or relocation starts
 before confirmation. A confirmed Jump retains the planned coordinates, arrives
 6,900 game units from the singularity and points the vessel away from it. There is
-no initial direction arrow revealing its location. Turning the vessel or looking
+no initial direction arrow revealing its location. Hazardous arrivals hold translation
+through the remaining transition, reset actual speed, and select a gentle 18 u/s
+cruise target. The pilot can raise the existing slider afterward. This prevents
+a retained high cruise speed from carrying the ship outside the host before
+the arrival animation finishes. Turning the vessel or looking
 through the canopy reveals the disk in the distance.
 
 Distance alerts start at 5,400 u (amber) and 3,100 u (red), with hysteresis on exit.

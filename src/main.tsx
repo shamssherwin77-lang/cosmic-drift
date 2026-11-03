@@ -33,7 +33,7 @@ function App(){
  useEffect(()=>{try{return createScene(host.current!,()=>flight.current,controller.current,joystick.current!,{
   onPlanner:plan=>{planner.current=plan;},getJumpTarget:()=>acceptedTarget.current,onSingularity:reading=>{setHazard(reading);},
   onNavigation:info=>{setNavigationInfo(info);setRegion(info.region);},jump:jump.current,onPhase:setJumpPhase,
-  onDestination:(r,seed)=>{setRegion(r);setWorldSeed(seed);},onAudio:(drive,charge,pause)=>audio.current.jump(drive,charge,pause),
+  onDestination:(r,seed)=>{setRegion(r);setWorldSeed(seed);if(acceptedTarget.current?.blackHole)setSpeed(18);},onAudio:(drive,charge,pause)=>audio.current.jump(drive,charge,pause),
  });}catch{setError('WebGL could not start. Please enable hardware acceleration and reload.');}},[]);
  useEffect(()=>{audio.current.onMusicState=setMusicPlayback;return()=>audio.current.dispose();},[]);
  useEffect(()=>{const id=setInterval(()=>setActualSpeed(controller.current.speed),200);return()=>clearInterval(id);},[]);

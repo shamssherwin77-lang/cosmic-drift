@@ -64,3 +64,10 @@ test('curved-ray black hole renders from front, rear and near orbit at every qua
  });
  expect(Math.max(...result.core.slice(0,3))).toBeLessThan(25);expect(result.samples).toHaveLength(9);result.samples.forEach(s=>{expect(s.error).toBe(0);expect(s.visible).toBe(true);});expect(result.after.geometries).toBe(0);expect(result.after.textures).toBe(0);expect(errors).toEqual([]);
 });
+
+test('a new ordinary journey reaches the warning on Jump three and high cruise speed cannot skip discovery',async({page})=>{
+ test.setTimeout(150000);await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
+ for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toHaveCount(0);await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
+ await page.locator('#speed').fill('1200');await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toBeVisible();await page.getByRole('button',{name:'I understand. Continue jump',exact:false}).click();await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});
+ await expect(page.locator('#speed')).toHaveValue('18');await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');await expect(page.locator('main')).toHaveAttribute('data-region','4');await page.waitForTimeout(1500);await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');
+});
