@@ -213,3 +213,21 @@ test('star systems have stable identities, varied populations and bounded footpr
   }
   assert.equal(signatures.size,6);
 });
+
+const singularity = await import('../src/singularity.ts');
+test('singularity alerts escalate by real distance and release with hysteresis',()=>{
+ const {readSingularity,CLEAR_READING}=singularity;
+ const caution=readSingularity('fixed-system',5300);assert.equal(caution.level,'caution');
+ assert.equal(readSingularity('fixed-system',5550,caution).level,'caution');assert.equal(readSingularity('fixed-system',5800,caution).level,'clear');
+ const critical=readSingularity('fixed-system',3000,caution);assert.equal(critical.level,'critical');
+ assert.equal(readSingularity('fixed-system',3250,critical).level,'critical');assert.equal(readSingularity('fixed-system',3450,critical).level,'caution');
+ assert.equal(readSingularity('other-system',5500,critical).level,'clear');assert.deepEqual(readSingularity('',Infinity),CLEAR_READING);
+ assert.equal(readSingularity('fixed-system',-10).intensity,1);
+});
+test('transit exclusion detects high-speed crossings without blocking tangential escape',()=>{
+ const {protectedEndpoint}=singularity;
+ const stop=protectedEndpoint([0,0,2000],[0,0,-2000],[0,0,0],760);assert.ok(Math.hypot(...stop)>=760);assert.ok(stop[2]>0);
+ assert.deepEqual(protectedEndpoint([1000,0,2000],[1000,0,-2000],[0,0,0],760),[1000,0,-2000]);
+ assert.deepEqual(protectedEndpoint([0,0,900],[0,0,2000],[0,0,0],760),[0,0,2000]);
+ assert.equal(Math.hypot(...protectedEndpoint([0,0,0],[0,0,0],[0,0,0],760)),760);
+});

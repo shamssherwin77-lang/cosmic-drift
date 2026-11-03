@@ -1,8 +1,9 @@
 import * as T from 'three';
 import { createBodies } from './bodies';
 import { systemLayout } from './system-layout';
-export type NavigationInfo = { current: string; next: string; distance: number; region: number };
-export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string };
+import { SINGULARITY_REGION, ARRIVAL_DISTANCE } from '../singularity';
+export type NavigationInfo = { current: string; next: string; distance: number; region: number; nextHazard?: boolean };
+export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean };
 
 export const SECTOR_SIZE = 14000;
 /** Coordinates, rather than visitation order, determine every landmark. */
@@ -88,8 +89,14 @@ export function createUniverse(scene: T.Scene) {
             else if ('opacity' in material) material.opacity *= fade;
           }
           object.visible = object.visible && fade > 0;
+          if(sector.region===SINGULARITY_REGION&&(object.userData.kind==='star'||object.name==='stellar-corona'))object.visible=false;
         }
       }
+    },
+    singularityAt(position:T.Vector3){
+      assign(position);let closest:ReturnType<typeof describeSector>|null=null,distance=Infinity;
+      for(const slot of slots){const sector=slot.sector!;if(sector.region!==SINGULARITY_REGION)continue;const d=sector.starWorld.distanceTo(position);if(d<distance){distance=d;closest=sector;}}
+      return closest&&distance<30000?{id:closest.key,position:closest.starWorld,distance}:null;
     },
     lightAt(position:T.Vector3){
       let nearest=slots[0].sector!,distance=Infinity;
@@ -99,11 +106,13 @@ export function createUniverse(scene: T.Scene) {
     },
     jumpTarget(position:T.Vector3,heading:T.Quaternion):JumpTarget{
       const {target}=destination(position,heading),approach=target.starWorld.clone().sub(position).normalize();
-      return{position:target.starWorld.clone().addScaledVector(approach,-4300),direction:approach,region:target.region,name:target.name};
+      const blackHole=target.region===SINGULARITY_REGION;
+      return{position:target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300),direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole};
     },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
-      const {nearest,nearestDistance,target}=destination(position,heading);
-      return {current:nearestDistance<5200?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region};
+      let {nearest,nearestDistance,target}=destination(position,heading);
+      for(const slot of slots){const sector=slot.sector!;const d=sector.starWorld.distanceTo(position);if(sector.region===SINGULARITY_REGION&&d<7500){nearest=sector;nearestDistance=d;break;}}
+      return {current:nearestDistance<(nearest.region===SINGULARITY_REGION?7500:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region,nextHazard:target.region===SINGULARITY_REGION};
     },
     dispose() { for (const slot of slots) slot.bodies.dispose(); markers.removeFromParent();markerGeometry.dispose();markerMaterial.dispose(); },
   };

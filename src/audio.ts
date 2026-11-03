@@ -1,3 +1,4 @@
+import type { HazardLevel } from './singularity';
 import { DEFAULT_AUDIO, MUSIC_TRACKS, type AudioPreferences, type MusicTrack } from './audio-preferences';
 
 type Track = typeof MUSIC_TRACKS[number];
@@ -10,6 +11,8 @@ export class SpaceAudio {
   onMusicState?: (state: MusicPlayback) => void;
   musicState: MusicPlayback = { state: 'idle', track: null };
   private jumpGain?: GainNode; private jumpTone?: OscillatorNode; private jumpFilter?: BiquadFilterNode;
+  private anomaly={briefing:false,level:'clear' as HazardLevel,intensity:0,assist:false};
+  private anomalyGain?:GainNode;private alarmGain?:GainNode;private anomalyFilter?:BiquadFilterNode;
   private lastDrive = -1; private lastCharge = -1;
   private settings = { ...DEFAULT_AUDIO };
   private enabled = false; private paused = false;
@@ -17,7 +20,7 @@ export class SpaceAudio {
   private fadeTimer?: ReturnType<typeof setTimeout>; private pauseTimer?: ReturnType<typeof setTimeout>;
   private visibility = () => this.apply();
   get currentRecording() { return this.current?.element ?? null; }
-  private get musicActive() { return this.enabled && !this.paused && !document.hidden && this.settings.musicEnabled && this.settings.music > 0; }
+  private get musicActive() { return this.enabled && !this.paused && !document.hidden && !this.anomaly.briefing && this.anomaly.level!=='critical' && !(this.anomaly.assist&&this.anomaly.level!=='clear') && this.settings.musicEnabled && this.settings.music > 0; }
   private report(state: MusicPlayback['state'], message?: string) {
     const track = this.current?.track?.id ?? null;
     if (this.musicState.state === state && this.musicState.track === track && this.musicState.message === message) return;
@@ -59,6 +62,18 @@ export class SpaceAudio {
       const rush = c.createBufferSource(); rush.buffer = buffer; rush.loop = true;
       this.jumpFilter = c.createBiquadFilter(); this.jumpFilter.type = 'lowpass'; this.jumpFilter.frequency.value = 250;
       rush.connect(this.jumpFilter).connect(this.jumpGain); rush.start();
+      this.anomalyGain=c.createGain();this.anomalyGain.gain.value=0;this.anomalyGain.connect(this.master);
+      const compressor=c.createDynamicsCompressor();compressor.threshold.value=-22;compressor.ratio.value=5;compressor.connect(this.anomalyGain);
+      for(const [frequency,level] of [[29,.16],[43.7,.075],[58.3,.045],[87.1,.018]]){
+        const tone=c.createOscillator(),gain=c.createGain();tone.frequency.value=frequency;tone.detune.value=frequency%5;gain.gain.value=level;
+        tone.connect(gain).connect(compressor);tone.start();
+        const drift=c.createOscillator(),depth=c.createGain();drift.frequency.value=.07+frequency*.0007;depth.gain.value=.9;drift.connect(depth).connect(tone.frequency);drift.start();
+      }
+      const abyss=c.createBufferSource();abyss.buffer=buffer;abyss.loop=true;abyss.playbackRate.value=.57;
+      this.anomalyFilter=c.createBiquadFilter();this.anomalyFilter.type='bandpass';this.anomalyFilter.frequency.value=180;this.anomalyFilter.Q.value=3.5;
+      const airGain=c.createGain();airGain.gain.value=.8;abyss.connect(this.anomalyFilter).connect(airGain).connect(compressor);abyss.start();
+      this.alarmGain=c.createGain();this.alarmGain.gain.value=0;this.alarmGain.connect(this.master);
+      const alarm=c.createOscillator();alarm.type='sine';alarm.frequency.value=620;alarm.connect(this.alarmGain);alarm.start();
       this.slots = Array.from({ length: 2 }, () => this.makeSlot(c));
       document.addEventListener('visibilitychange', this.visibility);
     }
@@ -98,7 +113,9 @@ export class SpaceAudio {
       [this.engine!, this.settings.engine, this.settings.engineEnabled],
       [this.space!, this.settings.space, this.settings.spaceEnabled],
       [this.music!, this.settings.music, this.settings.musicEnabled],
-    ] as const) channel.gain.setTargetAtTime(enabled ? volume : 0, now, .16);
+    ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
+    this.anomalyGain?.gain.setTargetAtTime(active&&!this.anomaly.briefing&&this.anomaly.level!=='clear'?.12+this.anomaly.intensity*.7:0,now,.65);
+    this.anomalyFilter?.frequency.setTargetAtTime(100+this.anomaly.intensity*240,now,.7);
     const track = MUSIC_TRACKS.find(t => t.id === this.settings.track) ?? MUSIC_TRACKS[0];
     if (!this.current || this.current.track?.id !== track.id) this.changeTrack(track);
     if (this.musicActive) {
@@ -151,6 +168,17 @@ export class SpaceAudio {
     slot.request++; slot.pending = false; slot.track = null;
     slot.element.pause(); slot.element.removeAttribute('src'); slot.element.load();
     if (this.ctx && this.ctx.state !== 'closed') { slot.gain.gain.cancelScheduledValues(this.ctx.currentTime); slot.gain.gain.value = 0; }
+  }
+  hazard(briefing:boolean,level:HazardLevel,intensity:number,assist=false){
+    const changed=briefing!==this.anomaly.briefing||level!==this.anomaly.level;
+    this.anomaly={briefing,level,intensity:Math.max(0,Math.min(1,intensity)),assist};this.apply();
+    if(changed&&this.ctx&&this.alarmGain){
+      const now=this.ctx.currentTime,gain=this.alarmGain.gain;gain.cancelScheduledValues(now);gain.setTargetAtTime(0,now,.02);
+      if((briefing||level!=='clear')&&this.enabled&&!this.paused&&!document.hidden){
+        const count=briefing||level==='critical'?3:2;
+        for(let i=0;i<count;i++){const t=now+.05+i*.32;gain.setValueAtTime(0,t);gain.linearRampToValueAtTime(.045,t+.018);gain.setValueAtTime(.045,t+.12);gain.linearRampToValueAtTime(0,t+.21);}
+      }
+    }
   }
   jump(drive: number, charge: number, paused: boolean) {
     if (!this.ctx || this.ctx.state === 'closed' || !this.jumpGain) return;

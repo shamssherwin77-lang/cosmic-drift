@@ -102,3 +102,17 @@ test('recordings are lazy, credit the composer and show a retryable error instea
   await expect(page.locator('.music-credits')).toContainText('Kevin MacLeod');
   await expect(page.locator('.music-credits a').filter({hasText:'CC BY 3.0'})).toHaveAttribute('href','https://creativecommons.org/licenses/by/3.0/');
 });
+
+test('black-hole briefing silences normal layers, confirmation resumes the recording and proximity replaces music',async({page})=>{
+ await page.route('**/hazard-audio-harness',r=>r.fulfill({contentType:'text/html',body:'<html><button>Start</button></html>'}));await page.goto('/hazard-audio-harness');
+ await page.evaluate(async()=>{const {SpaceAudio}=await import('/src/audio.ts'),{DEFAULT_AUDIO}=await import('/src/audio-preferences.ts');const audio=new SpaceAudio();window.hazardAudio=audio;document.querySelector('button').onclick=async()=>{await audio.start('meditation');audio.set(true,{...DEFAULT_AUDIO},false);};});
+ await page.getByRole('button',{name:'Start',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.hazardAudio.musicState.state)).toBe('playing');
+ await page.evaluate(()=>window.hazardAudio.hazard(true,'clear',0));await page.waitForTimeout(1800);
+ const silent=await page.evaluate(()=>{const a=window.hazardAudio;return{engine:a.engine.gain.value,space:a.space.gain.value,music:a.music.gain.value,paused:a.currentRecording.paused,time:a.currentRecording.currentTime};});
+ expect(silent.engine).toBeLessThan(.001);expect(silent.space).toBeLessThan(.001);expect(silent.music).toBeLessThan(.001);expect(silent.paused).toBe(true);
+ await page.evaluate(()=>window.hazardAudio.hazard(false,'clear',0));await expect.poll(()=>page.evaluate(()=>window.hazardAudio.musicState.state)).toBe('playing');
+ expect(await page.evaluate(()=>window.hazardAudio.currentRecording.currentTime)).toBeGreaterThanOrEqual(silent.time);
+ await page.evaluate(()=>window.hazardAudio.hazard(false,'caution',.4,true));await page.waitForTimeout(1800);const proximity=await page.evaluate(()=>{const a=window.hazardAudio;return{music:a.music.gain.value,anomaly:a.anomalyGain.gain.value,paused:a.currentRecording.paused};});
+ expect(proximity.music).toBeLessThan(.001);expect(proximity.anomaly).toBeGreaterThan(.2);expect(proximity.paused).toBe(true);
+ await page.evaluate(()=>window.hazardAudio.hazard(false,'clear',0));await expect.poll(()=>page.evaluate(()=>window.hazardAudio.musicState.state)).toBe('playing');await page.evaluate(()=>window.hazardAudio.dispose());
+});

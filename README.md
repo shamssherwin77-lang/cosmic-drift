@@ -166,3 +166,12 @@ rail replace the flight deck. Music and graphics open individual settings overla
 There is no mode selector, region picker or automatic region timer. Jump selects
 a real neighboring system in the flight direction, relocates under its transition
 veil, and derives the atmosphere from the destination coordinates.
+
+### Deep Silence singularity
+
+Deep Silence now contains supermassive black-hole encounters with curved-ray
+accretion disks, background lensing and warm ship lighting. A hazardous Jump
+requires an explicit Continue/Cancel decision; entry points away from the hole
+so the pilot can discover it by turning. Distance-based amber/red warnings,
+optional transit stabilization and a dark proximity soundscape accompany close
+exploration. See [encounter behavior and graphics details](docs/singularity.md).
