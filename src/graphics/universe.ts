@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { createBodies } from './bodies';
 import { systemLayout } from './system-layout';
-import { SINGULARITY_REGION, ARRIVAL_DISTANCE } from '../singularity';
+import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
 export type NavigationInfo = { current: string; next: string; distance: number; region: number; nextHazard?: boolean };
 export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean };
 
@@ -20,7 +20,7 @@ export function describeSector(x: number, y: number, z: number) {
   if (home) heading.identity();
   const anchor = new T.Vector3(x, y, z).multiplyScalar(SECTOR_SIZE), system = systemLayout(identity, region, false);
   const starWorld = system.center.clone().applyQuaternion(heading).add(anchor);
-  return { key: `${x}/${y}/${z}`, seed: identity, region, heading, anchor, starWorld, starColor: system.starColor, starRadius: system.starRadius, name: system.name };
+  return { key: `${x}/${y}/${z}`, blackHole: `${x}/${y}/${z}`===SINGULARITY_KEY, seed: identity, region, heading, anchor, starWorld, starColor: system.starColor, starRadius: system.starRadius, name: system.name };
 }
 
 /** A fixed pool bounds GPU memory. Evicted sectors are recreated identically. */
@@ -62,10 +62,16 @@ export function createUniverse(scene: T.Scene) {
       slot.bodies.configure(quality);
     }
   };
-  const destination=(position:T.Vector3,heading:T.Quaternion)=>{
-    assign(position);forward.set(0,0,-1).applyQuaternion(heading);
+  const location=(position:T.Vector3)=>{
+    assign(position);
     let nearest=slots[0].sector!,nearestDistance=Infinity;
     for(const slot of slots){const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
+    const host=slots.find(s=>s.sector?.blackHole)?.sector;
+    if(host&&host.starWorld.distanceTo(position)<SINGULARITY_DOMAIN){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
+    return{nearest,nearestDistance};
+  };
+  const destination=(position:T.Vector3,heading:T.Quaternion)=>{
+    const {nearest,nearestDistance}=location(position);forward.set(0,0,-1).applyQuaternion(heading);
     let target=nearest,best=-Infinity;
     for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
     return{nearest,nearestDistance,target};
@@ -89,14 +95,13 @@ export function createUniverse(scene: T.Scene) {
             else if ('opacity' in material) material.opacity *= fade;
           }
           object.visible = object.visible && fade > 0;
-          if(sector.region===SINGULARITY_REGION&&(object.userData.kind==='star'||object.name==='stellar-corona'))object.visible=false;
+          if(sector.blackHole&&(object.userData.kind==='star'||object.name==='stellar-corona'))object.visible=false;
         }
       }
     },
     singularityAt(position:T.Vector3){
-      assign(position);let closest:ReturnType<typeof describeSector>|null=null,distance=Infinity;
-      for(const slot of slots){const sector=slot.sector!;if(sector.region!==SINGULARITY_REGION)continue;const d=sector.starWorld.distanceTo(position);if(d<distance){distance=d;closest=sector;}}
-      return closest&&distance<30000?{id:closest.key,position:closest.starWorld,distance}:null;
+      const {nearest,nearestDistance}=location(position);
+      return nearest.blackHole&&nearestDistance<SINGULARITY_DOMAIN?{id:nearest.key,position:nearest.starWorld,distance:nearestDistance}:null;
     },
     lightAt(position:T.Vector3){
       let nearest=slots[0].sector!,distance=Infinity;
@@ -106,13 +111,18 @@ export function createUniverse(scene: T.Scene) {
     },
     jumpTarget(position:T.Vector3,heading:T.Quaternion):JumpTarget{
       const {target}=destination(position,heading),approach=target.starWorld.clone().sub(position).normalize();
-      const blackHole=target.region===SINGULARITY_REGION;
-      return{position:target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300),direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole};
+      const blackHole=target.blackHole,arrival=target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300);
+      // Safe destinations must also land outside the unique host's domain.
+      const host=describeSector(...SINGULARITY_SECTOR);
+      if(!blackHole&&arrival.distanceTo(host.starWorld)<SINGULARITY_DOMAIN+500){
+        arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(host.starWorld).normalize(),4300);
+        approach.copy(target.starWorld).sub(arrival).normalize();
+      }
+      return{position:arrival,direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole};
     },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
-      let {nearest,nearestDistance,target}=destination(position,heading);
-      for(const slot of slots){const sector=slot.sector!;const d=sector.starWorld.distanceTo(position);if(sector.region===SINGULARITY_REGION&&d<7500){nearest=sector;nearestDistance=d;break;}}
-      return {current:nearestDistance<(nearest.region===SINGULARITY_REGION?7500:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region,nextHazard:target.region===SINGULARITY_REGION};
+      const {nearest,nearestDistance,target}=destination(position,heading);
+      return {current:nearestDistance<(nearest.blackHole?SINGULARITY_DOMAIN:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region,nextHazard:target.blackHole};
     },
     dispose() { for (const slot of slots) slot.bodies.dispose(); markers.removeFromParent();markerGeometry.dispose();markerMaterial.dispose(); },
   };

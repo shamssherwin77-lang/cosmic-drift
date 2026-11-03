@@ -1,9 +1,12 @@
 # Deep Silence encounter
 
-Deep Silence (region 4) contains persistent supermassive black-hole systems.
-Each host uses the existing deterministic sector identity and primary coordinates;
-its ordinary star and stellar corona are hidden, while its orbiting bodies remain.
-The renderer draws the closest singularity within the bounded streamed neighborhood.
+Exactly one persistent sector (-1/0/1, Caeli-EFC7) in Deep Silence hosts the
+supermassive black hole. Matching palette names or procedural seeds do not create
+additional hosts. Its star and corona are hidden; other systems retain theirs.
+Rendering, gravity, proximity audio and navigation all use the same 7,500 u host
+domain. The hole is absent in every other nebula, even if its host is still in the
+streamed neighborhood. Safe Jumps land outside that domain; every Jump into the
+unique host requires confirmation, including return visits.
 Coordinates, disk orientation and exclusion distances do not change with quality.
 
 ## Flight and consent

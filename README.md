@@ -169,7 +169,7 @@ veil, and derives the atmosphere from the destination coordinates.
 
 ### Deep Silence singularity
 
-Deep Silence now contains supermassive black-hole encounters with curved-ray
+One fixed system in Deep Silence hosts the sole supermassive black hole, with curved-ray
 accretion disks, background lensing and warm ship lighting. A hazardous Jump
 requires an explicit Continue/Cancel decision; entry points away from the hole
 so the pilot can discover it by turning. Distance-based amber/red warnings,

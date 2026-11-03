@@ -1,5 +1,9 @@
 /** Distances are deliberately compressed game units, not physical kilometres. */
 export const SINGULARITY_REGION = 4;
+// One world identity, not every sector sharing the Deep Silence palette.
+export const SINGULARITY_SECTOR = [-1,0,1] as const;
+export const SINGULARITY_KEY = SINGULARITY_SECTOR.join('/');
+export const SINGULARITY_DOMAIN = 7500;
 export const HORIZON_RADIUS = 260;
 export const ARRIVAL_DISTANCE = 6900;
 export const CAUTION_DISTANCE = 5400;
