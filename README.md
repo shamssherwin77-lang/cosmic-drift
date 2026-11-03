@@ -175,3 +175,11 @@ requires an explicit Continue/Cancel decision; entry points away from the hole
 so the pilot can discover it by turning. Distance-based amber/red warnings,
 optional transit stabilization and a dark proximity soundscape accompany close
 exploration. See [encounter behavior and graphics details](docs/singularity.md).
+
+### Optional Descent free flight
+
+On desktop, Settings → **Descent free flight** enables mouse steering and local
+six-axis thrust: W/S forward/reverse, A/D strafe, Space/Ctrl ascend/descend and
+Q/E roll. Click the game to capture the mouse; Escape releases it. The existing
+slider sets thrust speed. This option starts off so existing cruise and mobile
+controls retain their behavior. See [controls and integration](docs/descent-flight.md).

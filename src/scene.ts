@@ -84,7 +84,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     jump.advance(delta,s.paused||s.hazardHold);
     if(jump.phase!==lastPhase){lastPhase=jump.phase;events.onPhase?.(jump.phase);}
     if(jump.justCommitted){
-      if(jumpTarget){space.recordJump(jumpTarget.key);if(jumpTarget.blackHole)controller.speed=0;controller.position.copy(jumpTarget.position);controller.yaw=Math.atan2(-jumpTarget.direction.x,-jumpTarget.direction.z);controller.pitch=Math.asin(jumpTarget.direction.y);controller.reset(true);controller.shipQuaternion.setFromEuler(arrivalRotation.set(controller.pitch,controller.yaw,0,'YXZ'));nextNavigation=0;}
+      if(jumpTarget){space.recordJump(jumpTarget.key);if(jumpTarget.blackHole)controller.speed=0;controller.position.copy(jumpTarget.position);controller.yaw=Math.atan2(-jumpTarget.direction.x,-jumpTarget.direction.z);controller.pitch=Math.asin(jumpTarget.direction.y);controller.reset(true);controller.shipQuaternion.setFromEuler(arrivalRotation.set(controller.pitch,controller.yaw,0,'YXZ'));controller.syncAttitude();nextNavigation=0;}
       space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
     const renderRegion=jump.busy&&jump.committed?jump.destination:s.region;
     const visualEnergy=jump.energy*(s.reduced?.16:s.mode==='Meditation'?.55:1);

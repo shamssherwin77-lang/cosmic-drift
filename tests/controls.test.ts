@@ -231,3 +231,25 @@ test('transit exclusion detects high-speed crossings without blocking tangential
  assert.deepEqual(protectedEndpoint([0,0,900],[0,0,2000],[0,0,0],760),[0,0,2000]);
  assert.equal(Math.hypot(...protectedEndpoint([0,0,0],[0,0,0],[0,0,0],760)),760);
 });
+
+test('Descent is opt-in, rests without thrust and moves on all six local axes',()=>{
+ for(const [key,axis,sign] of [['KeyW',2,-1],['KeyS',2,1],['KeyA',0,-1],['KeyD',0,1],['Space',1,1],['ControlLeft',1,-1]] as const){
+  const c=new FlightController(),s=settings({freeFlight:true,speed:100});c.step(0,s);advance(c,s,1);near(c.position.length(),0);c.key(key,true);advance(c,s,2);
+  const p=c.position.toArray();assert.ok(p[axis]*sign>100);p.forEach((n,i)=>{if(i!==axis)near(n,0);});near(c.yaw,0);near(c.pitch,0);
+ }
+});
+test('Descent release coasts to rest, diagonal thrust is bounded and reversing is gradual',()=>{
+ const c=new FlightController(),s=settings({freeFlight:true,speed:100});c.step(0,s);c.key('KeyW',true);c.key('KeyD',true);advance(c,s,4);assert.ok(c.speed<=100);assert.ok(c.speed>99);
+ const old=c.velocity.clone();c.key('KeyW',false);c.key('KeyD',false);const p=c.position.clone();advance(c,s,.1);assert.ok(c.position.distanceTo(p)>1);assert.ok(c.speed<old.length()&&c.speed>70);advance(c,s,7);assert.ok(c.speed<.01);
+ c.key('KeyS',true);advance(c,s,3);c.key('KeyS',false);c.key('KeyW',true);c.step(1/60,s);assert.ok(c.velocity.z>0);advance(c,s,2);assert.ok(c.velocity.z<0);
+});
+test('Descent mouse aim and roll use local quaternion axes and preserve six-axis thrust',()=>{
+ const c=new FlightController(),s=settings({freeFlight:true,speed:100});c.step(0,s);c.aim(.15,-.1,s);advance(c,s,1);assert.ok(c.yaw<0);assert.ok(c.pitch>0);
+ const before=c.shipQuaternion.clone();c.key('KeyQ',true);advance(c,s,2);c.key('KeyQ',false);assert.ok(before.angleTo(c.shipQuaternion)>.8);near(c.shipQuaternion.length(),1);
+ const forward=new Vector3(0,0,-1).applyQuaternion(c.shipQuaternion);c.key('KeyW',true);advance(c,s,3);assert.ok(c.velocity.clone().normalize().dot(forward)>.98);
+ c.reset(true);const p=c.position.clone();advance(c,{...s,blocked:true},1);near(c.position.distanceTo(p),0);near(c.speed,0);
+});
+test('Descent translation is stable across frame rates and pause or mode changes cannot queue thrust',()=>{
+ const values=[15,30,60,120].map(fps=>{const c=new FlightController(),s=settings({freeFlight:true,speed:120});c.step(0,s);c.key('KeyD',true);advance(c,s,3,fps);c.key('KeyD',false);advance(c,s,2,fps);return c.position.x;});values.forEach(x=>near(x,values[0],1e-7));
+ const c=new FlightController(),s=settings({freeFlight:true});c.step(0,s);c.key('KeyW',true);advance(c,s,1);const p=c.position.clone();advance(c,{...s,paused:true},1);advance(c,s,1);near(c.position.distanceTo(p),0);assert.equal(c.keys.size,0);
+});
