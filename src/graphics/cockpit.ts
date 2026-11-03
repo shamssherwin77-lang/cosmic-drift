@@ -208,7 +208,7 @@ export function createCockpit(ship: T.Group) {
     // Extrusions/tubes do not all carry matching attributes; normalize before merging.
     for (const part of parts) { if (part.index) { const expanded = part.toNonIndexed(); part.copy(expanded); expanded.dispose(); } part.deleteAttribute('uv1'); }
     const geometry = mergeGeometries(parts)!; parts.forEach(part => part.dispose());
-    const mesh = new T.Mesh(geometry, material); mesh.castShadow=material===metal||material===trim||material===dark;mesh.receiveShadow=mesh.castShadow; mesh.name = material === glass ? 'observation-glazing' : material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
+    const mesh = new T.Mesh(geometry, material); if(material===glass)mesh.renderOrder=9; mesh.castShadow=material===metal||material===trim||material===dark;mesh.receiveShadow=mesh.castShadow; mesh.name = material === glass ? 'observation-glazing' : material === metal ? 'enclosure-shell' : material === screenMaterial ? 'instrument-displays' : 'cabin-details'; cabin.add(mesh);
   }
   return {
     group: cabin,

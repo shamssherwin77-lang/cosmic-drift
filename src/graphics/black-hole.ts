@@ -6,7 +6,7 @@ import type { Quality } from './config';
 export function createBlackHole(scene:T.Scene){
  const target=new T.WebGLRenderTarget(1,1,{depthBuffer:true});target.texture.colorSpace=T.LinearSRGBColorSpace;
  const u={background:{value:target.texture},center:{value:new T.Vector3()},radius:{value:HORIZON_RADIUS},time:{value:0},steps:{value:80},veil:{value:0},resolution:{value:new T.Vector2(1,1)},viewProjection:{value:new T.Matrix4()},cameraRight:{value:new T.Vector3(1,0,0)},cameraUp:{value:new T.Vector3(0,1,0)}};
- const material=new T.ShaderMaterial({uniforms:u,side:T.BackSide,depthWrite:true,transparent:false,
+ const material=new T.ShaderMaterial({uniforms:u,side:T.BackSide,depthWrite:true,transparent:true,blending:T.NoBlending,
  vertexShader:`varying vec3 worldPoint;void main(){vec4 p=modelMatrix*vec4(position,1.);worldPoint=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,
  fragmentShader:`precision highp float;
  varying vec3 worldPoint;uniform sampler2D background;uniform vec3 center,cameraRight,cameraUp;uniform float radius,time,veil;uniform int steps;uniform vec2 resolution;uniform mat4 viewProjection;
@@ -25,7 +25,7 @@ export function createBlackHole(scene:T.Scene){
  void main(){
   vec3 origin=(cameraPosition-center)/radius,ray=normalize(worldPoint-cameraPosition),original=ray;
   float b=dot(origin,ray),disc=b*b-dot(origin,origin)+64.;if(disc<0.)discard;
-  float entry=max(0.,-b-sqrt(disc));vec3 p=origin+ray*entry;vec3 emission=vec3(0.);float transmittance=1.,captured=0.;
+  float entry=max(0.,-b-sqrt(disc));vec4 surfaceDepth=viewProjection*vec4(cameraPosition+original*max(200.,entry*radius),1.);gl_FragDepth=clamp(surfaceDepth.z/surfaceDepth.w*.5+.5,0.,1.);vec3 p=origin+ray*entry;vec3 emission=vec3(0.),dust=vec3(0.);float transmittance=1.,captured=0.;
   // Fixed disk tilt gives a real three-dimensional plane from every approach.
   mat3 tilt=mat3(.98877,0.,-.14944,.01492,.995,.09871,.14869,-.09983,.98383);
   for(int i=0;i<112;i++){
@@ -35,19 +35,19 @@ export function createBlackHole(scene:T.Scene){
    vec3 a=tilt*old,c=tilt*p;float radial=length(c.xz);
    if(a.y*c.y<=0.&&radial>1.55&&radial<6.5){float f=abs(a.y)/(abs(a.y)+abs(c.y)+.0001);vec3 hit=mix(a,c,f);float optical=clamp(.63/max(.23,abs((tilt*ray).y)),0.,.98);emission+=disk(hit,tilt*ray)*optical*transmittance;transmittance*=1.-optical;}
    // Thin dusty emission above the equatorial sheet.
-   if(radial>1.7&&radial<6.3){float haze=exp(-abs(c.y)*32./max(radial,1.))*stepSize*.065;emission+=disk(c,tilt*ray)*haze*transmittance;}
+   if(radial>1.7&&radial<6.3){float haze=exp(-abs(c.y)*32./max(radial,1.))*stepSize*.065;dust+=disk(c,tilt*ray)*haze*transmittance;}
   }
   vec3 exitPoint=center+(p+ray*180.)*radius;vec4 projected=viewProjection*vec4(exitPoint,1.);vec2 uv=projected.xy/max(.001,projected.w)*.5+.5;
   vec3 sky=texture2D(background,clamp(uv,.002,.998)).rgb;
   float deviation=length(ray-original);float photon=exp(-pow((length(cross(origin,original))-3.3)/.065,2.));
-  vec3 color=sky*transmittance*(1.-captured)+emission+vec3(1.,.55,.2)*photon*.22*(1.-captured);
+  vec3 color=sky*transmittance*(1.-captured)+emission+dust*(1.-captured)+vec3(1.,.55,.2)*photon*.22*(1.-captured);
   // Preserve HDR emission until the final display transform.
   color=mix(color,color/(1.+color*.36),clamp(length(emission)*.2,0.,1.));float influence=1.-smoothstep(5.7,7.9,length(cross(origin,original)));vec3 undistorted=texture2D(background,gl_FragCoord.xy/resolution).rgb;color=mix(undistorted,color,influence);color=mix(color,vec3(.18,.23,.3),veil*.985);
   gl_FragColor=vec4(color,1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
  }`});
- const mesh=new T.Mesh(new T.SphereGeometry(1,40,24),material);mesh.name='supermassive-black-hole';mesh.scale.setScalar(HORIZON_RADIUS*8);mesh.frustumCulled=false;mesh.visible=false;mesh.renderOrder=4;scene.add(mesh);
+ const mesh=new T.Mesh(new T.SphereGeometry(1,40,24),material);mesh.name='supermassive-black-hole';mesh.scale.setScalar(HORIZON_RADIUS*8);mesh.frustumCulled=false;mesh.visible=false;mesh.renderOrder=6;scene.add(mesh);
  const glow=new T.PointLight('#ffb365',0,9000,1);glow.name='accretion-light';scene.add(glow);
  let scale=.5,enabled=false,rendering=false;
  const relative=new T.Vector3(),view=new T.Vector3(),frustum=new T.Frustum(),matrix=new T.Matrix4(),sphere=new T.Sphere();
