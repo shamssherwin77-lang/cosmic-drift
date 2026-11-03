@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { createBodies } from './bodies';
 import { systemLayout } from './system-layout';
-import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
+import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_EXIT, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
 export type NavigationInfo = { current: string; next: string; distance: number; region: number; nextHazard?: boolean };
 export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean };
 
@@ -38,7 +38,7 @@ export function createUniverse(scene: T.Scene) {
   });
   const beacons = new T.Points(markerGeometry, markerMaterial); beacons.frustumCulled = false; beacons.renderOrder = 3; markers.add(beacons);
   const illumination={direction:new T.Vector3(-.5,.7,-.3),color:new T.Color('#d9e6ff'),intensity:2};
-  let cell = '', quality = 'Medium',completedJumps=0;
+  let cell = '', quality = 'Medium',completedJumps=0,hostVisit=false;
   const singularityHost=describeSector(...SINGULARITY_SECTOR);
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position), key = `${x}/${y}/${z}`;
@@ -67,8 +67,8 @@ export function createUniverse(scene: T.Scene) {
     assign(position);
     let nearest=slots[0].sector!,nearestDistance=Infinity;
     for(const slot of slots){const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
-    const host=slots.find(s=>s.sector?.blackHole)?.sector;
-    if(host&&host.starWorld.distanceTo(position)<SINGULARITY_DOMAIN){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
+    const host=hostVisit?singularityHost:slots.find(s=>s.sector?.blackHole)?.sector;
+    if(host&&host.starWorld.distanceTo(position)<(hostVisit?SINGULARITY_EXIT:SINGULARITY_DOMAIN)){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
     return{nearest,nearestDistance};
   };
   const destination=(position:T.Vector3,heading:T.Quaternion)=>{
@@ -79,11 +79,13 @@ export function createUniverse(scene: T.Scene) {
     return{nearest,nearestDistance,target};
   };
   return {
-    recordJump(_key:string){completedJumps++;},
+    recordJump(key:string){completedJumps++;hostVisit=key===SINGULARITY_KEY;},
     setJump(energy: number) { markerMaterial.uniforms.jump.value = 1 - T.MathUtils.smoothstep(energy,.12,.65); for (const slot of slots) slot.bodies.setJump(energy); },
     configure(value: string) { quality = value; for (const slot of slots) slot.bodies.configure(value); },
     update(dt: number, time: number, _region: number, position: T.Vector3) {
       assign(position); offset.copy(position).sub(markerOrigin);
+      const hostDistance=position.distanceTo(singularityHost.starWorld);
+      if(hostDistance<SINGULARITY_DOMAIN)hostVisit=true;else if(hostDistance>=SINGULARITY_EXIT)hostVisit=false;
       for (const slot of slots) {
         const sector = slot.sector!;
         slot.bodies.update(dt, time, sector.region, position);
@@ -104,7 +106,7 @@ export function createUniverse(scene: T.Scene) {
     },
     singularityAt(position:T.Vector3){
       const {nearest,nearestDistance}=location(position);
-      return nearest.blackHole&&nearestDistance<SINGULARITY_DOMAIN?{id:nearest.key,position:nearest.starWorld,distance:nearestDistance}:null;
+      return nearest.blackHole&&nearestDistance<(hostVisit?SINGULARITY_EXIT:SINGULARITY_DOMAIN)?{id:nearest.key,position:nearest.starWorld,distance:nearestDistance}:null;
     },
     lightAt(position:T.Vector3){
       let nearest=slots[0].sector!,distance=Infinity;

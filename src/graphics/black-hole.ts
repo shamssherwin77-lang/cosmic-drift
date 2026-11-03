@@ -1,15 +1,15 @@
 import * as T from 'three';
-import { HORIZON_RADIUS } from '../singularity';
+import { HORIZON_RADIUS, SINGULARITY_FADE_START, SINGULARITY_FADE_END } from '../singularity';
 import type { Quality } from './config';
 
 /** Curved-ray disk integration. Background is captured without the vessel so cabin geometry is never lensed. */
 export function createBlackHole(scene:T.Scene){
  const target=new T.WebGLRenderTarget(1,1,{depthBuffer:true});target.texture.colorSpace=T.LinearSRGBColorSpace;
- const u={background:{value:target.texture},center:{value:new T.Vector3()},radius:{value:HORIZON_RADIUS},time:{value:0},steps:{value:80},veil:{value:0},resolution:{value:new T.Vector2(1,1)},viewProjection:{value:new T.Matrix4()},cameraRight:{value:new T.Vector3(1,0,0)},cameraUp:{value:new T.Vector3(0,1,0)}};
+ const u={background:{value:target.texture},center:{value:new T.Vector3()},radius:{value:HORIZON_RADIUS},time:{value:0},presence:{value:1},steps:{value:80},veil:{value:0},resolution:{value:new T.Vector2(1,1)},viewProjection:{value:new T.Matrix4()},cameraRight:{value:new T.Vector3(1,0,0)},cameraUp:{value:new T.Vector3(0,1,0)}};
  const material=new T.ShaderMaterial({uniforms:u,side:T.BackSide,depthWrite:true,transparent:true,blending:T.NoBlending,
  vertexShader:`varying vec3 worldPoint;void main(){vec4 p=modelMatrix*vec4(position,1.);worldPoint=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,
  fragmentShader:`precision highp float;
- varying vec3 worldPoint;uniform sampler2D background;uniform vec3 center,cameraRight,cameraUp;uniform float radius,time,veil;uniform int steps;uniform vec2 resolution;uniform mat4 viewProjection;
+ varying vec3 worldPoint;uniform sampler2D background;uniform vec3 center,cameraRight,cameraUp;uniform float radius,time,veil,presence;uniform int steps;uniform vec2 resolution;uniform mat4 viewProjection;
  float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
  float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
  vec3 disk(vec3 p,vec3 dir){
@@ -42,7 +42,7 @@ export function createBlackHole(scene:T.Scene){
   float deviation=length(ray-original);float photon=exp(-pow((length(cross(origin,original))-3.3)/.065,2.));
   vec3 color=sky*transmittance*(1.-captured)+emission+dust*(1.-captured)+vec3(1.,.55,.2)*photon*.22*(1.-captured);
   // Preserve HDR emission until the final display transform.
-  color=mix(color,color/(1.+color*.36),clamp(length(emission)*.2,0.,1.));float influence=1.-smoothstep(5.7,7.9,length(cross(origin,original)));vec3 undistorted=texture2D(background,gl_FragCoord.xy/resolution).rgb;color=mix(undistorted,color,influence);color=mix(color,vec3(.18,.23,.3),veil*.985);
+  color=mix(color,color/(1.+color*.36),clamp(length(emission)*.2,0.,1.));float influence=1.-smoothstep(5.7,7.9,length(cross(origin,original)));vec3 undistorted=texture2D(background,gl_FragCoord.xy/resolution).rgb;color=mix(undistorted,color,influence*presence);color=mix(color,vec3(.18,.23,.3),veil*.985);
   gl_FragColor=vec4(color,1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -54,7 +54,7 @@ export function createBlackHole(scene:T.Scene){
  return{
   mesh,target,
   configure(quality:Quality,width:number,height:number){scale=quality==='High'?.8:quality==='Medium'?.55:.35;u.steps.value=quality==='High'?112:quality==='Medium'?80:52;target.setSize(Math.max(1,Math.round(width*scale)),Math.max(1,Math.round(height*scale)));u.resolution.value.set(width,height);},
-  update(position:T.Vector3|null,observer:T.Vector3,time:number,veil:number){enabled=!!position;if(position)relative.copy(position).sub(observer);mesh.position.copy(relative);u.center.value.copy(relative);u.time.value=time;u.veil.value=veil;mesh.visible=enabled&&relative.length()<30000;glow.position.copy(relative).normalize().multiplyScalar(22);glow.intensity=enabled?Math.min(90,4e8/Math.max(1,relative.lengthSq())):0;},
+  update(position:T.Vector3|null,observer:T.Vector3,time:number,veil:number){enabled=!!position;if(position)relative.copy(position).sub(observer);mesh.position.copy(relative);u.center.value.copy(relative);u.time.value=time;u.veil.value=veil;u.presence.value=enabled?1-T.MathUtils.smoothstep(relative.length(),SINGULARITY_FADE_START,SINGULARITY_FADE_END):0;mesh.visible=enabled&&u.presence.value>0;glow.position.copy(relative).normalize().multiplyScalar(22);glow.intensity=u.presence.value*Math.min(90,4e8/Math.max(1,relative.lengthSq()));},
   capture(renderer:T.WebGLRenderer,camera:T.Camera,vessel?:T.Object3D){
    if(!mesh.visible||rendering)return;camera.updateMatrixWorld();matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(matrix);sphere.set(relative,HORIZON_RADIUS*8);if(!frustum.intersectsSphere(sphere))return;
    view.setFromMatrixPosition(camera.matrixWorld).sub(relative);if(view.length()<HORIZON_RADIUS*.99)return;

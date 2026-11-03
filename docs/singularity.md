@@ -3,8 +3,11 @@
 Exactly one persistent sector (-1/0/1, Caeli-EFC7) in Deep Silence hosts the
 supermassive black hole. Matching palette names or procedural seeds do not create
 additional hosts. Its star and corona are hidden; other systems retain theirs.
-Rendering, gravity, proximity audio and navigation all use the same 7,500 u host
-domain. The hole is absent in every other nebula, even if its host is still in the
+The 7,500 u domain establishes entry, not a rendering cutoff. Once entered,
+the host remains active across streamed-sector boundaries until a safe Jump or
+physical departure beyond 34,000 u. Its image and light fade continuously between
+24,000 and 32,000 u. Proximity alerts still follow their own distance thresholds.
+The hole is absent after a Jump to another nebula, even if its host is still in the
 streamed neighborhood. Safe Jumps land outside that domain; every Jump into the
 unique host requires confirmation, including return visits.
 Coordinates, disk orientation and exclusion distances do not change with quality.
