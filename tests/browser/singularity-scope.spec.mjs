@@ -27,12 +27,13 @@ test('safe Jump destinations cannot land inside the host domain without a warnin
  expect(result.some(r=>!r.warn)).toBe(true);result.filter(r=>!r.warn).forEach(r=>expect(r.visible,r.key).toBeNull());
 });
 
-test('normal forward travel offers the unique host after two completed jumps, with stable previews and no repeats',async({page})=>{
+test('normal travel returns to the same unique host every five Jumps with a fresh hazard advisory',async({page})=>{
  await page.route('**/route-harness',r=>r.fulfill({contentType:'text/html',body:'<html></html>'}));await page.goto('/route-harness');
  const result=await page.evaluate(async()=>{
   const T=await import('/node_modules/three/build/three.module.js'),{createUniverse}=await import('/src/graphics/universe.ts');const world=createUniverse(new T.Scene()),p=new T.Vector3(),q=new T.Quaternion(),e=new T.Euler(0,0,0,'YXZ'),targets=[];world.update(.1,0,0,p);
-  for(let i=0;i<3;i++){const target=world.jumpTarget(p,q);for(let n=0;n<5;n++)if(world.jumpTarget(p,q).key!==target.key)throw Error('Planning consumed journey progress');targets.push({key:target.key,hazard:target.blackHole});world.recordJump(target.key);p.copy(target.position);q.setFromEuler(e.set(Math.asin(target.direction.y),Math.atan2(-target.direction.x,-target.direction.z),0,'YXZ'));world.update(.1,i,target.region,p);}
+  for(let i=0;i<13;i++){const target=world.jumpTarget(p,q);for(let n=0;n<5;n++)if(world.jumpTarget(p,q).key!==target.key)throw Error('Planning consumed journey progress');targets.push({key:target.key,hazard:target.blackHole,region:target.region,arrival:target.position.toArray()});world.recordJump(target.key);p.copy(target.position);q.setFromEuler(e.set(Math.asin(target.direction.y),Math.atan2(-target.direction.x,-target.direction.z),0,'YXZ'));world.update(.1,i,target.region,p);}
   const after=world.jumpTarget(p,q);world.dispose();return{targets,after:{key:after.key,hazard:after.blackHole}};
  });
- expect(result.targets[2]).toEqual({key:'-1/0/1',hazard:true});expect(result.targets.filter(t=>t.hazard)).toHaveLength(1);expect(result.after.hazard).toBe(false);
+ for(const index of [2,7,12]){expect(result.targets[index].key).toBe('-1/0/1');expect(result.targets[index].hazard).toBe(true);expect(result.targets[index].region).toBe(4);}
+ expect(result.targets.filter(t=>t.hazard)).toHaveLength(3);expect(result.after.hazard).toBe(false);
 });

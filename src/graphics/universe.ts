@@ -38,7 +38,7 @@ export function createUniverse(scene: T.Scene) {
   });
   const beacons = new T.Points(markerGeometry, markerMaterial); beacons.frustumCulled = false; beacons.renderOrder = 3; markers.add(beacons);
   const illumination={direction:new T.Vector3(-.5,.7,-.3),color:new T.Color('#d9e6ff'),intensity:2};
-  let cell = '', quality = 'Medium',completedJumps=0,visitedSingularity=false;
+  let cell = '', quality = 'Medium',completedJumps=0;
   const singularityHost=describeSector(...SINGULARITY_SECTOR);
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position), key = `${x}/${y}/${z}`;
@@ -73,18 +73,17 @@ export function createUniverse(scene: T.Scene) {
   };
   const destination=(position:T.Vector3,heading:T.Quaternion)=>{
     const {nearest,nearestDistance}=location(position);forward.set(0,0,-1).applyQuaternion(heading);
-    if(completedJumps>=2&&!visitedSingularity&&nearest.key!==SINGULARITY_KEY)return{nearest,nearestDistance,target:singularityHost};
+    if(completedJumps%5===2&&nearest.key!==SINGULARITY_KEY)return{nearest,nearestDistance,target:singularityHost};
     let target=nearest,best=-Infinity;
     for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
     return{nearest,nearestDistance,target};
   };
   return {
-    recordJump(key:string){completedJumps++;if(key===SINGULARITY_KEY)visitedSingularity=true;},
+    recordJump(_key:string){completedJumps++;},
     setJump(energy: number) { markerMaterial.uniforms.jump.value = 1 - T.MathUtils.smoothstep(energy,.12,.65); for (const slot of slots) slot.bodies.setJump(energy); },
     configure(value: string) { quality = value; for (const slot of slots) slot.bodies.configure(value); },
     update(dt: number, time: number, _region: number, position: T.Vector3) {
       assign(position); offset.copy(position).sub(markerOrigin);
-      if(position.distanceTo(singularityHost.starWorld)<SINGULARITY_DOMAIN)visitedSingularity=true;
       for (const slot of slots) {
         const sector = slot.sector!;
         slot.bodies.update(dt, time, sector.region, position);

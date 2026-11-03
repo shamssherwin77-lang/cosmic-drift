@@ -11,9 +11,10 @@ Coordinates, disk orientation and exclusion distances do not change with quality
 
 ## Flight and consent
 
-After two completed ordinary Jumps, the next planned Jump offers the unique host
-if it has not been visited. This one-time discovery route uses the same world
-coordinates and advisory, without adding a region picker or duplicating the hole.
+The Jump route returns to the unique host on Jumps 3, 8, 13, and so on.
+Visits never consume or disable the encounter. Each return uses the same world
+coordinates and asks for fresh confirmation, without adding a region picker
+or duplicating the hole. Ordinary Jumps between visits continue exploring.
 Previewing navigation never advances journey progress.
 
 The scene exposes a synchronous Jump planner to the UI. Before entering a hazardous
