@@ -15,8 +15,8 @@ lock is unavailable, holding and dragging the mouse still steers the vessel.
 | Arrow keys or existing joystick | Additional steering |
 | Escape | Release mouse and clear held input |
 
-The existing speed slider sets the thrust speed limit. With no thrust, the vessel
-floats at rest; releasing thrust coasts smoothly to a stop. Diagonal inputs are
+The existing speed slider sets the thrust speed limit. With no thrust, navigation rests while the whole vessel gently
+heaves and sways; releasing thrust coasts smoothly to a stop. Diagonal inputs are
 normalized to avoid a speed bonus. Translation follows the vessel's local frame,
 including its roll. Quaternion attitude integration permits vertical flight and
 full rotation without a pitch clamp.
@@ -38,3 +38,14 @@ layout are unchanged. Touch-only devices retain their existing flight controls.
 Validation includes legacy control tests, six-axis direction/inertia and frame-rate
 tests, browser mouse-lock/keyboard/menu tests, and an actual Jump with free flight
 selected and thrust held.
+
+## Idle suspension
+
+Descent adds bounded, slow multi-frequency heave, sway and attitude motion to the
+shared vessel root, carrying the cockpit, camera, wings and engine housings together.
+It does not change navigation coordinates, commanded orientation or collision
+distances. Motion reduces while aiming, thrusting or rolling and gradually returns
+after controls and drift settle. The existing Camera movement slider controls its
+amplitude; Reduced motion disables it. Pause and menus freeze it. Jump fades it
+out, resets it under the transition and resumes gently after arrival. Legacy cruise
+and touch-only flight retain their previous behavior.

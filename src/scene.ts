@@ -6,6 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { bindFlightInput, FlightController, type ControlSettings } from './controls';
 import { advanceFlight, FrameBudget } from './frame-budget';
 import { LightJump, type JumpPhase } from './light-jump';
+import { ShipFloat } from './ship-float';
 import { createJumpEffect } from './graphics/jump-effect';
 import { createSpace } from './graphics/space';
 import { createCockpit } from './graphics/cockpit';
@@ -30,6 +31,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(68, 1, .1, 50000);
   const ship = new T.Group(); ship.position.z = 5; ship.add(camera); scene.add(ship);
+  const suspension=new ShipFloat(),vesselBaseline=ship.position.clone(),lastAttitude=controller.shipQuaternion.clone();
   const jump=events.jump ?? new LightJump();let lastPhase=jump.phase;
   const runtime={...get()};
   const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||jump.busy||!!runtime.hazardHold;return runtime;};
@@ -83,7 +85,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     if(jump.busy&&jump.seed!==plannedJumpSeed){plannedJumpSeed=jump.seed;jumpTarget=events.getJumpTarget?.()??space.jumpTarget(controller.position,controller.shipQuaternion);jump.destination=jumpTarget.region;}
     jump.advance(delta,s.paused||s.hazardHold);
     if(jump.phase!==lastPhase){lastPhase=jump.phase;events.onPhase?.(jump.phase);}
-    if(jump.justCommitted){
+    if(jump.justCommitted){suspension.reset();
       if(jumpTarget){space.recordJump(jumpTarget.key);if(jumpTarget.blackHole)controller.speed=0;controller.position.copy(jumpTarget.position);controller.yaw=Math.atan2(-jumpTarget.direction.x,-jumpTarget.direction.z);controller.pitch=Math.asin(jumpTarget.direction.y);controller.reset(true);controller.shipQuaternion.setFromEuler(arrivalRotation.set(controller.pitch,controller.yaw,0,'YXZ'));controller.syncAttitude();nextNavigation=0;}
       space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
     const renderRegion=jump.busy&&jump.committed?jump.destination:s.region;
@@ -115,7 +117,11 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     space.setJump(visualEnergy,jump.veil);
     space.update(graphicsDt, time, renderRegion, controller.position, lighting.nebula);
     if(time>=nextNavigation){events.onNavigation?.(space.navigation(controller.position,controller.shipQuaternion));nextNavigation=time+.5;}
-    ship.quaternion.copy(controller.shipQuaternion); camera.quaternion.copy(controller.lookQuaternion);
+    const turning=lastAttitude.angleTo(controller.shipQuaternion)/Math.max(.001,dt);
+    const activity=Math.max(controller.keys.size||controller.touchSteering?1:0,Math.min(1,turning*5),Math.min(1,controller.speed/Math.max(1,s.speed)));
+    suspension.update(dt,{enabled:!!s.freeFlight&&s.started&&!jump.busy,paused:s.paused||!!s.hazardHold||s.blocked&&!jump.busy,reduced:s.reduced,motion:s.motion,activity});
+    suspension.apply(ship,controller.shipQuaternion,vesselBaseline);lastAttitude.copy(controller.shipQuaternion);
+    camera.quaternion.copy(controller.lookQuaternion);
     cabinTint.copy(space.tint).lerp(jumpWhite,jump.charge*.3);
     hull.update(s.cockpit,controller.speed);
     cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');
