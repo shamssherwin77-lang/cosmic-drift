@@ -8,6 +8,7 @@ lock is unavailable, holding and dragging the mouse still steers the vessel.
 | Input | Action |
 | --- | --- |
 | Mouse | Vessel yaw and pitch |
+| Mouse wheel | Increase / decrease the existing throttle target |
 | W / S | Forward / reverse thrust |
 | A / D | Strafe left / right |
 | Space / Ctrl | Ascend / descend |
@@ -53,3 +54,10 @@ after controls and drift settle. The existing Camera movement slider controls it
 amplitude; Reduced motion disables it. Pause and menus freeze it. Jump fades it
 out, resets it under the transition and resumes gently after arrival. Legacy cruise
 and touch-only flight retain their previous behavior.
+
+The mouse wheel adjusts the same 0–1200 target as the speed slider in both cruise
+and Descent, including while the mouse is captured. Wheel-up increases speed and
+wheel-down decreases it. Pixel, line and page deltas are normalized, small trackpad
+deltas accumulate, and extreme events are bounded. Normal acceleration and braking
+remain in the flight controller. Settings scrolling, browser zoom modifiers, pause,
+Jump, preflight and warning overlays do not change throttle.

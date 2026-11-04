@@ -276,3 +276,9 @@ test('seat inertia reveals vertical cabin heave while user look and helm remain 
  f.update(1/60,{...floatSettings,reduced:true});f.applyCamera(camera,look);near(camera.position.length(),0);near(camera.quaternion.angleTo(look),0,1e-7);
  const values=[15,30,60,120].map(fps=>{const model=new ShipFloat(),eye=new Object3D();for(let i=0;i<fps*8;i++)model.update(1/fps,floatSettings);model.applyCamera(eye,new Quaternion());return eye.position.toArray();});values.forEach(p=>p.forEach((n,i)=>near(n,values[0][i],1e-8)));
 });
+
+
+const {wheelThrottleDelta}=await import('../src/controls.ts');
+test('wheel throttle normalizes devices, preserves direction and bounds extreme input',()=>{
+ near(wheelThrottleDelta(-100),20);near(wheelThrottleDelta(100),-20);near(wheelThrottleDelta(-3,1),9.6);near(wheelThrottleDelta(1,2),-80);near(wheelThrottleDelta(-100000),80);near(wheelThrottleDelta(NaN),0);near(wheelThrottleDelta(0),0);
+});

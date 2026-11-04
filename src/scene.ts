@@ -20,7 +20,7 @@ export { regions } from './graphics/config';
 
 export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
-export type JumpEvents={onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
+export type JumpEvents={onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
 export function createScene(el: HTMLDivElement, get: () => Flight, controller: FlightController, joystick: HTMLElement, events:JumpEvents = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setClearColor('#040710');
@@ -43,7 +43,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const arrivalRotation=new T.Euler(0,0,0,'YXZ');
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
-  const input = bindFlightInput(renderer.domElement, joystick, controller, readInput);
+  const input = bindFlightInput(renderer.domElement, joystick, controller, readInput,events.onSpeed);
   const clock = new T.Clock(), budget = new FrameBudget();
   let lastQuality = get().quality, lastPerformance = get().performanceMode, lastAdaptive = get().adaptive;
   let nextNavigation=0,nextHazardUpdate=0;

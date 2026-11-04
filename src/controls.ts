@@ -20,6 +20,13 @@ const damp = (n: number, target: number, rate: number, dt: number) =>
 const freeKeys = new Set(['Space','ControlLeft','ControlRight','KeyQ','KeyE']);
 const flightKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
 
+/** Normalize wheel devices: a typical 100-pixel notch changes the target by 20 u/s. */
+export function wheelThrottleDelta(deltaY:number,deltaMode=0){
+  if(!Number.isFinite(deltaY))return 0;
+  const pixels=deltaY*(deltaMode===1?16:deltaMode===2?400:1);
+  return -clamp(pixels,-400,400)*.2;
+}
+
 /** Ship heading and passenger free-look are independent. No automatic roll. */
 export class FlightController {
   readonly shipQuaternion = new Quaternion();
@@ -173,10 +180,10 @@ export class FlightController {
 }
 
 /** Each active pointer owns one role; capture/cancel cannot leak into another. */
-export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement, controller: FlightController, get: () => ControlSettings) {
+export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement, controller: FlightController, get: () => ControlSettings, changeSpeed?: (delta:number)=>void) {
   let lookPointer: { id: number; type: string; x: number; y: number } | null = null;
   let stickPointer: number | null = null;
-  let lastContext = '';
+  let lastContext = '',wheelRemainder=0;
   const listeners: (() => void)[] = [];
   const on = (target: EventTarget, type: string, handler: EventListener, options?: AddEventListenerOptions) => {
     target.addEventListener(type, handler, options);
@@ -198,7 +205,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
     if (pointer !== null && joystick.hasPointerCapture(pointer)) joystick.releasePointerCapture(pointer);
   };
   const releaseLock=()=>{if(document.pointerLockElement===canvas)document.exitPointerLock();};
-  const reset = () => { endLook(); endStick(); controller.reset(true);releaseLock(); };
+  const reset = () => { wheelRemainder=0;endLook(); endStick(); controller.reset(true);releaseLock(); };
   on(canvas, 'pointerdown', ((e: PointerEvent) => {
     if (!available() || lookPointer || (e.pointerType === 'mouse' && (e.button !== 0 || stickPointer !== null))) return;
     e.preventDefault();
@@ -244,6 +251,11 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
   for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     on(joystick, event, ((e: PointerEvent) => { if (e.pointerId === stickPointer) endStick(); }) as EventListener);
   }
+  on(canvas,'wheel',((e:WheelEvent)=>{
+    if(!changeSpeed||!available()||!get().started||e.ctrlKey||e.metaKey||e.altKey||!e.deltaY)return;
+    e.preventDefault();wheelRemainder+=wheelThrottleDelta(e.deltaY,e.deltaMode);
+    const delta=Math.trunc(wheelRemainder+Math.sign(wheelRemainder)*1e-9);if(delta){wheelRemainder-=delta;changeSpeed(delta);}
+  }) as EventListener,{passive:false});
   const editable = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input,select,textarea,[contenteditable="true"]');
   on(window, 'keydown', ((e: KeyboardEvent) => {
     if(e.code==='Escape'&&get().freeFlight){reset();return;}
@@ -261,7 +273,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
   return {
     sync() {
       const s = get(); const context = `${s.mode}/${s.paused}/${s.started}/${s.blocked}/${!!s.freeFlight}`;
-      if (lastContext && context !== lastContext) { endLook(); endStick(); controller.reset(s.paused || s.blocked);if(s.paused||s.blocked||!s.freeFlight)releaseLock(); }
+      if (lastContext && context !== lastContext) { endLook(); endStick(); controller.reset(s.paused || s.blocked);wheelRemainder=0;if(s.paused||s.blocked||!s.freeFlight)releaseLock(); }
       lastContext = context;
     },
     dispose() { reset(); listeners.forEach(remove => remove()); },
