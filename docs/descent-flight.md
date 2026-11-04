@@ -16,7 +16,7 @@ lock is unavailable, holding and dragging the mouse still steers the vessel.
 | Escape | Release mouse and clear held input |
 
 The existing speed slider sets the thrust speed limit. With no thrust, navigation rests while the whole vessel gently
-heaves and sways; releasing thrust coasts smoothly to a stop. Diagonal inputs are
+heaves gently in view; releasing thrust coasts smoothly to a stop. Diagonal inputs are
 normalized to avoid a speed bonus. Translation follows the vessel's local frame,
 including its roll. Quaternion attitude integration permits vertical flight and
 full rotation without a pitch clamp.
@@ -42,7 +42,11 @@ selected and thrust held.
 ## Idle suspension
 
 Descent adds bounded, slow multi-frequency heave, sway and attitude motion to the
-shared vessel root, carrying the cockpit, camera, wings and engine housings together.
+shared vessel root, keeping the cockpit, wings and engine housings rigidly together.
+A bounded inertial seat follow lets the camera trail only the automatic suspension
+slightly, making vertical dashboard movement visible. It does not delay mouse
+commands or alter the baseline view, field of view, models or controls. Vertical
+heave is emphasized while incidental roll and lateral sway remain smaller.
 It does not change navigation coordinates, commanded orientation or collision
 distances. Motion reduces while aiming, thrusting or rolling and gradually returns
 after controls and drift settle. The existing Camera movement slider controls its

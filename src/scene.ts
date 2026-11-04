@@ -121,7 +121,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     const activity=Math.max(controller.keys.size||controller.touchSteering?1:0,Math.min(1,turning*5),Math.min(1,controller.speed/Math.max(1,s.speed)));
     suspension.update(dt,{enabled:!!s.freeFlight&&s.started&&!jump.busy,paused:s.paused||!!s.hazardHold||s.blocked&&!jump.busy,reduced:s.reduced,motion:s.motion,activity});
     suspension.apply(ship,controller.shipQuaternion,vesselBaseline);lastAttitude.copy(controller.shipQuaternion);
-    camera.quaternion.copy(controller.lookQuaternion);
+    suspension.applyCamera(camera,controller.lookQuaternion);
     cabinTint.copy(space.tint).lerp(jumpWhite,jump.charge*.3);
     hull.update(s.cockpit,controller.speed);
     cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');

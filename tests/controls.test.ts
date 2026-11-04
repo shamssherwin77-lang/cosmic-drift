@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Euler, Vector3 } from 'three';
+import { Euler, Vector3, Quaternion, Object3D } from 'three';
 import { LightJump } from '../src/light-jump.ts';
 import { advanceFlight, FrameBudget } from '../src/frame-budget.ts';
 import { FlightController, type ControlSettings } from '../src/controls.ts';
@@ -258,11 +258,21 @@ const {ShipFloat}=await import('../src/ship-float.ts');
 const floatSettings={enabled:true,paused:false,reduced:false,motion:.6,activity:0};
 test('vessel float is bounded, varies gently at rest and settles under active input',()=>{
  const idle=new ShipFloat(),active=new ShipFloat();let idleEnergy=0,activeEnergy=0;const first=[];
- for(let i=0;i<1200;i++){idle.update(1/60,floatSettings);active.update(1/60,{...floatSettings,activity:1});assert.ok(idle.offset.length()<.07);assert.ok(Math.abs(idle.rotation.length()-1)<1e-10);if(i===300)first.push(...idle.offset.toArray());if(i>300){idleEnergy+=idle.offset.lengthSq();activeEnergy+=active.offset.lengthSq();}}
+ for(let i=0;i<1200;i++){idle.update(1/60,floatSettings);active.update(1/60,{...floatSettings,activity:1});assert.ok(idle.offset.length()<.105);assert.ok(Math.abs(idle.rotation.length()-1)<1e-10);if(i===300)first.push(...idle.offset.toArray());if(i>300){idleEnergy+=idle.offset.lengthSq();activeEnergy+=active.offset.lengthSq();}}
  assert.notDeepEqual(idle.offset.toArray(),first);assert.ok(activeEnergy<idleEnergy*.04);
  const before=active.offset.clone();active.update(1/60,floatSettings);assert.ok(active.offset.distanceTo(before)<.002);
 });
 test('vessel float freezes on pause, respects reduced motion and is frame-rate independent',()=>{
  const snapshots=[15,30,60,120].map(fps=>{const f=new ShipFloat();for(let i=0;i<fps*8;i++)f.update(1/fps,floatSettings);return{offset:f.offset.toArray(),rotation:f.rotation.toArray()};});snapshots.forEach(s=>s.offset.forEach((v,i)=>near(v,snapshots[0].offset[i],1e-9)));
  const f=new ShipFloat();for(let i=0;i<200;i++)f.update(1/60,floatSettings);const p=f.offset.toArray(),q=f.rotation.toArray();f.update(.2,{...floatSettings,paused:true});assert.deepEqual(f.offset.toArray(),p);assert.deepEqual(f.rotation.toArray(),q);f.update(1/60,{...floatSettings,reduced:true});near(f.offset.length(),0);near(f.rotation.w,1);
+});
+
+
+test('seat inertia reveals vertical cabin heave while user look and helm remain immediate',()=>{
+ const f=new ShipFloat(),camera=new Object3D(),vessel=new Object3D(),baseline=new Vector3(0,0,5),helm=new Quaternion().setFromEuler(new Euler(.2,-.4,.3));let vertical=0,lateral=0;
+ for(let i=0;i<1200;i++){f.update(1/60,floatSettings);f.apply(vessel,helm,baseline);f.applyCamera(camera,new Quaternion());if(i>300){vertical+=camera.position.y**2;lateral+=camera.position.x**2;}assert.ok(camera.position.length()<.14);}
+ assert.ok(vertical>lateral*8);assert.ok(helm.angleTo(new Quaternion().setFromEuler(new Euler(.2,-.4,.3)))<1e-7);
+ const before=camera.quaternion.clone(),look=new Quaternion().setFromEuler(new Euler(.1,.6,0));f.applyCamera(camera,look);near(before.angleTo(camera.quaternion),new Quaternion().angleTo(look),1e-7);
+ f.update(1/60,{...floatSettings,reduced:true});f.applyCamera(camera,look);near(camera.position.length(),0);near(camera.quaternion.angleTo(look),0,1e-7);
+ const values=[15,30,60,120].map(fps=>{const model=new ShipFloat(),eye=new Object3D();for(let i=0;i<fps*8;i++)model.update(1/fps,floatSettings);model.applyCamera(eye,new Quaternion());return eye.position.toArray();});values.forEach(p=>p.forEach((n,i)=>near(n,values[0][i],1e-8)));
 });

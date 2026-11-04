@@ -42,8 +42,11 @@ test('idle float moves the real vessel rig together while navigation rests, and 
   const dispose=createScene(document.querySelector('#host'),()=>settings,controller,document.querySelector('#stick'));window.floatHarness={controller,settings,dispose};
  });
  await expect.poll(()=>page.evaluate(()=>!!window.floatRig)).toBe(true);await page.waitForTimeout(500);
- const read=()=>page.evaluate(()=>{const rig=window.floatRig,c=rig.children.find(o=>o.isCamera);return{p:rig.position.toArray(),q:rig.quaternion.toArray(),cameraLocal:c.position.toArray(),navigation:window.floatHarness.controller.position.toArray(),children:rig.children.map(c=>c.uuid)};});
- const first=await read();await page.waitForTimeout(900);const second=await read();expect(second.p).not.toEqual(first.p);expect(second.q).not.toEqual(first.q);expect(second.navigation).toEqual([0,0,0]);expect(second.cameraLocal).toEqual(first.cameraLocal);expect(second.children).toEqual(first.children);
+ const read=()=>page.evaluate(()=>{const rig=window.floatRig,c=rig.children.find(o=>o.isCamera);return{p:rig.position.toArray(),q:rig.quaternion.toArray(),cameraLocal:c.position.toArray(),screenY:(1-c.position.clone().set(0,-.13,-2.727).applyMatrix4(rig.matrixWorld).project(c).y)*200,navigation:window.floatHarness.controller.position.toArray(),children:rig.children.map(c=>c.uuid)};});
+ const first=await read(),samples=[first];let low=first.screenY,high=first.screenY;
+ for(let i=0;i<18;i++){await page.waitForTimeout(500);const sample=await read();samples.push(sample);if(sample.screenY<low){low=sample.screenY;await page.screenshot({path:'test-results/hover-low.png'});}if(sample.screenY>high){high=sample.screenY;await page.screenshot({path:'test-results/hover-high.png'});}}
+ const second=samples.at(-1);expect(second.p).not.toEqual(first.p);expect(second.q).not.toEqual(first.q);expect(second.navigation).toEqual([0,0,0]);expect(second.cameraLocal).not.toEqual(first.cameraLocal);expect(high-low).toBeGreaterThan(4);expect(second.children).toEqual(first.children);
+
  await page.evaluate(()=>{window.floatHarness.settings.paused=true;});await page.waitForTimeout(250);const frozen=await read();await page.waitForTimeout(350);expect((await read()).p).toEqual(frozen.p);expect((await read()).q).toEqual(frozen.q);
  await page.evaluate(()=>{window.floatHarness.settings.paused=false;window.floatHarness.settings.reduced=true;});await expect.poll(async()=>Math.max(...(await read()).q.slice(0,3).map(Math.abs))).toBeLessThan(1e-8);expect((await read()).p).toEqual([0,0,5]);
  await page.evaluate(()=>{window.floatHarness.dispose();});
