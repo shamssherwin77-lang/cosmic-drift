@@ -13,6 +13,7 @@ export class SpaceAudio {
   private jumpGain?: GainNode; private jumpTone?: OscillatorNode; private jumpFilter?: BiquadFilterNode;
   private anomaly={briefing:false,level:'clear' as HazardLevel,intensity:0,assist:false};
   private anomalyGain?:GainNode;private alarmGain?:GainNode;private anomalyFilter?:BiquadFilterNode;
+  private surfaceState={density:0,landed:false};private driveTones:OscillatorNode[]=[];private airFilter?:BiquadFilterNode;
   private lastDrive = -1; private lastCharge = -1;
   private settings = { ...DEFAULT_AUDIO };
   private enabled = false; private paused = false;
@@ -37,7 +38,7 @@ export class SpaceAudio {
       for (const f of [38, 57, 76]) {
         const oscillator = c.createOscillator(), gain = c.createGain();
         oscillator.type = 'sine'; oscillator.frequency.value = f; gain.gain.value = .09;
-        oscillator.connect(gain).connect(this.engine); oscillator.start();
+        oscillator.connect(gain).connect(this.engine); oscillator.start();this.driveTones.push(oscillator);
       }
       const buffer = c.createBuffer(2, c.sampleRate * 4, c.sampleRate);
       let seed = 1237;
@@ -52,7 +53,7 @@ export class SpaceAudio {
       }
       const noise = c.createBufferSource(), air = c.createBiquadFilter();
       noise.buffer = buffer; noise.loop = true; air.type = 'lowpass'; air.frequency.value = 650;
-      noise.connect(air).connect(this.space); noise.start();
+      noise.connect(air).connect(this.space); noise.start();this.airFilter=air;
       for (const f of [82.41, 123.47]) {
         const tone = c.createOscillator(), level = c.createGain(); tone.frequency.value = f; level.gain.value = .012;
         tone.connect(level).connect(this.space); tone.start();
@@ -113,7 +114,8 @@ export class SpaceAudio {
       [this.engine!, this.settings.engine, this.settings.engineEnabled],
       [this.space!, this.settings.space, this.settings.spaceEnabled],
       [this.music!, this.settings.music, this.settings.musicEnabled],
-    ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
+    ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(channel===this.engine&&this.surfaceState.landed?.25:1)*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
+    this.airFilter?.frequency.setTargetAtTime(650+this.surfaceState.density*900,now,.7);this.driveTones.forEach((tone,i)=>tone.frequency.setTargetAtTime([38,57,76][i]*(1+this.surfaceState.density*.025),now,.7));
     this.anomalyGain?.gain.setTargetAtTime(active&&!this.anomaly.briefing&&this.anomaly.level!=='clear'?.12+this.anomaly.intensity*.7:0,now,.65);
     this.anomalyFilter?.frequency.setTargetAtTime(100+this.anomaly.intensity*240,now,.7);
     const track = MUSIC_TRACKS.find(t => t.id === this.settings.track) ?? MUSIC_TRACKS[0];
@@ -169,6 +171,7 @@ export class SpaceAudio {
     slot.element.pause(); slot.element.removeAttribute('src'); slot.element.load();
     if (this.ctx && this.ctx.state !== 'closed') { slot.gain.gain.cancelScheduledValues(this.ctx.currentTime); slot.gain.gain.value = 0; }
   }
+  surface(density:number,landed:boolean){this.surfaceState={density:Math.max(0,Math.min(1,density)),landed};this.apply();}
   hazard(briefing:boolean,level:HazardLevel,intensity:number,assist=false){
     const changed=briefing!==this.anomaly.briefing||level!==this.anomaly.level;
     this.anomaly={briefing,level,intensity:Math.max(0,Math.min(1,intensity)),assist};this.apply();
@@ -193,7 +196,7 @@ export class SpaceAudio {
     clearTimeout(this.fadeTimer); clearTimeout(this.pauseTimer);
     document.removeEventListener('visibilitychange', this.visibility);
     for (const slot of this.slots) { slot.element.onwaiting = slot.element.onplaying = slot.element.onerror = null; this.release(slot); slot.source.disconnect(); slot.gain.disconnect(); }
-    this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;
+    this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;this.driveTones=[];this.airFilter=undefined;
     void this.ctx?.close().catch(() => {}); this.ctx = null;
   }
 }

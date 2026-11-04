@@ -282,3 +282,22 @@ const {wheelThrottleDelta}=await import('../src/controls.ts');
 test('wheel throttle normalizes devices, preserves direction and bounds extreme input',()=>{
  near(wheelThrottleDelta(-100),20);near(wheelThrottleDelta(100),-20);near(wheelThrottleDelta(-3,1),9.6);near(wheelThrottleDelta(1,2),-80);near(wheelThrottleDelta(-100000),80);near(wheelThrottleDelta(NaN),0);near(wheelThrottleDelta(0),0);
 });
+
+const planet=await import('../src/planet.ts');
+test('Avaris terrain is deterministic with a flat landing basin and surrounding mountains',()=>{
+ const {terrainHeight,LANDING_NORMAL,PLANET_RADIUS,groundNormal}=planet;const floor=terrainHeight(LANDING_NORMAL),ridge=LANDING_NORMAL.clone().add(new Vector3(520/PLANET_RADIUS,0,0)).normalize();
+ near(terrainHeight(LANDING_NORMAL.clone()),floor);assert.ok(floor>20&&floor<25);assert.ok(terrainHeight(ridge)>floor+120);assert.ok(groundNormal(LANDING_NORMAL).dot(LANDING_NORMAL)>.99);
+ for(let i=0;i<100;i++){const n=new Vector3(Math.sin(i*.71),Math.cos(i*.37),Math.sin(i*.21)).normalize();const h=terrainHeight(n);assert.ok(h>=0&&h<=500);near(terrainHeight(n.clone()),h);}
+});
+test('surface range remains continuous, speed limits reduce gradually and hull sweeps cannot tunnel',()=>{
+ const {altitudeAt,terrainHeight,LANDING_NORMAL,PLANET_RADIUS,HULL_CLEARANCE,protectSurface,surfaceSpeedLimit}=planet,center=new Vector3(),p=LANDING_NORMAL.clone().multiplyScalar(PLANET_RADIUS+terrainHeight(LANDING_NORMAL)+100);
+ near(altitudeAt(p,center),100,1e-8);const result=new Vector3();assert.equal(protectSurface(p,LANDING_NORMAL.clone().multiplyScalar(-5000),center,result),true);assert.ok(altitudeAt(result,center)>=HULL_CLEARANCE-1e-5);assert.ok(result.dot(LANDING_NORMAL)>0);
+ const outward=result.clone().addScaledVector(LANDING_NORMAL,20);assert.equal(protectSurface(result,outward,center,result),false);near(altitudeAt(result,center),HULL_CLEARANCE+20,1e-6);
+ assert.equal(surfaceSpeedLimit(100),45);assert.equal(surfaceSpeedLimit(4000),1200);assert.ok(surfaceSpeedLimit(1500)>45&&surfaceSpeedLimit(1500)<1200);
+});
+test('gentle landing reaches contact and takeoff returns to controllable flight',()=>{
+ const {PlanetFlight,LANDING_NORMAL,PLANET_RADIUS,terrainHeight,altitudeAt,HULL_CLEARANCE}=planet,c=new FlightController(),world={key:'1/0/0',name:'Avaris',region:2,center:new Vector3()},surface=new PlanetFlight();
+ c.position.copy(LANDING_NORMAL).multiplyScalar(PLANET_RADIUS+terrainHeight(LANDING_NORMAL)+60);surface.update(0,c,world,c.position.clone(),false);assert.equal(surface.reading.canLand,true);assert.equal(surface.land(),true);
+ for(let i=0;i<400;i++)surface.update(1/60,c,world,c.position.clone(),true);assert.equal(surface.status,'landed');near(altitudeAt(c.position,world.center),HULL_CLEARANCE,1e-6);near(c.speed,0);
+ assert.equal(surface.takeoff(),true);for(let i=0;i<180;i++)surface.update(1/60,c,world,c.position.clone(),true);assert.equal(surface.status,'flight');assert.ok(altitudeAt(c.position,world.center)>80);surface.update(0,c,null,c.position,false);assert.equal(surface.reading.visible,false);
+});

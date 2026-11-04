@@ -117,6 +117,7 @@ export function createSpace(scene: T.Scene) {
     jumpTarget: bodies.jumpTarget,
     recordJump:bodies.recordJump,
     singularityAt:bodies.singularityAt,
+    planetAt:bodies.planetAt,
     setJump(energy:number,veil:number){shared.jumpAmount.value=Math.max(energy,veil);backdropUniforms.veil.value=veil;backdropUniforms.jumpTint.value.copy(shared.tint.value).lerp(shared.accent.value,.35);bodies.setJump(Math.max(energy,veil));},
     reseed(seed:number,region:number,position:T.Vector3,heading?:T.Quaternion){
       origin.copy(position);heading?orientation.copy(heading):orientation.identity();inverseOrientation.copy(orientation).invert();destinationRotation.setFromMatrix4(rotation4.makeRotationFromQuaternion(orientation));volumeRotation.copy(destinationRotation).transpose();
