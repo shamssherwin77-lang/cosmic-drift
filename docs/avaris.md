@@ -9,7 +9,8 @@ Descent controls, wheel throttle and existing black-hole encounter remain intact
 Jump 2, 7, 12, etc. offers the same fixed host system, Thal-EF8E (sector 1/0/0), in
 Golden Core. Arrival faces the planet and chooses gentle cruise speed. A dismissible
 notice explicitly tells the pilot that this nebula contains a world they can land
-on. It appears on each arrival. Jump 3, 8, 13 still visits the unique black-hole host.
+on. It appears on each arrival. Avaris is reserved for these scheduled Jumps;
+steering toward its host or passing close to that system does not skip Jump 2. Jump 3, 8, 13 still visits the unique black-hole host.
 
 The orbital instrument reads distance remaining to the surface. As approach
 continues, ground clearance, descent rate and terrain warnings fade into view.
@@ -54,3 +55,7 @@ state without altering saved mixer preferences or interrupting the recorded musi
 Validation covers deterministic terrain and basins, mountain elevation, continuous
 altimetry, speed limits, high-speed contact, landing/takeoff, route metadata, entry
 notice, all graphics tiers, GPU cleanup and the existing application regression suite.
+
+The built GitHub Pages artifact is also tested without source injection:
+`PLAYWRIGHT_PREVIEW=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:browser -- tests/browser/published.spec.mjs`
+after `npm run build -- --base=/cosmic-drift/`.

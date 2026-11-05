@@ -5,11 +5,11 @@ export default defineConfig({
   workers: 1,
   timeout: 60000,
   use: {
-    baseURL: 'http://127.0.0.1:5174',
+    baseURL: process.env.PLAYWRIGHT_PREVIEW ? 'http://127.0.0.1:5174/cosmic-drift/' : 'http://127.0.0.1:5174',
     launchOptions: {
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
       args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
     },
   },
-  webServer: { command: 'npm run dev -- --port 5174 --strictPort', url: 'http://127.0.0.1:5174', reuseExistingServer: false },
+  webServer: { command: process.env.PLAYWRIGHT_PREVIEW ? 'npm run preview -- --port 5174 --strictPort' : 'npm run dev -- --port 5174 --strictPort', url: 'http://127.0.0.1:5174', reuseExistingServer: false },
 });

@@ -76,10 +76,10 @@ export function createUniverse(scene: T.Scene) {
   };
   const destination=(position:T.Vector3,heading:T.Quaternion)=>{
     const {nearest,nearestDistance}=location(position);forward.set(0,0,-1).applyQuaternion(heading);
-    if(completedJumps%5===1&&nearest.key!==LANDING_KEY)return{nearest,nearestDistance,target:planetHost};
+    if(completedJumps%5===1)return{nearest,nearestDistance,target:planetHost};
     if(completedJumps%5===2&&nearest.key!==SINGULARITY_KEY)return{nearest,nearestDistance,target:singularityHost};
     let target=nearest,best=-Infinity;
-    for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
+    for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key||sector.landable)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
     return{nearest,nearestDistance,target};
   };
   return {

@@ -29,3 +29,19 @@ test('surface radar supports a real gentle landing and takeoff without changing 
  const clearance=await page.evaluate(async center=>{const {altitudeAt}=await import('/src/planet.ts');return altitudeAt(window.planetPilot.position,window.planetPilot.position.clone().set(...center));},data.center);expect(clearance).toBeCloseTo(9,1);
  await page.getByRole('button',{name:'Take off',exact:true}).click();await expect(panel).toHaveAttribute('data-surface-status','flight',{timeout:20000});const altitude=await page.evaluate(async center=>{const {altitudeAt}=await import('/src/planet.ts');return altitudeAt(window.planetPilot.position,window.planetPilot.position.clone().set(...center));},data.center);expect(altitude).toBeGreaterThan(70);expect(errors).toEqual([]);
 });
+
+test('Avaris stays on Jump two even after steering toward or passing its host, and returns every five Jumps',async({page})=>{
+ await page.route('**/planet-route-harness',r=>r.fulfill({contentType:'text/html',body:'<html></html>'}));await page.goto('/planet-route-harness');
+ const result=await page.evaluate(async()=>{
+  const T=await import('/node_modules/three/build/three.module.js'),{createUniverse,describeSector}=await import('/src/graphics/universe.ts'),{LANDING_SECTOR,LANDING_KEY}=await import('/src/planet.ts');
+  const world=createUniverse(new T.Scene()),host=describeSector(...LANDING_SECTOR),p=new T.Vector3(),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,-1),host.starWorld.clone().normalize());world.configure('Low');world.update(.1,0,0,p);
+  const first=world.jumpTarget(p,q);world.recordJump(first.key);p.copy(host.starWorld);world.update(.1,1,host.region,p);const second=world.jumpTarget(p,q);
+  world.recordJump(second.key);p.copy(second.position);const targets=[first,second];
+  for(let n=2;n<12;n++){world.update(.1,n,0,p);const target=world.jumpTarget(p,q);if(world.jumpTarget(p,q).key!==target.key)throw Error('Planning advanced the route');targets.push(target);world.recordJump(target.key);p.copy(target.position);}
+  world.dispose();return{landingKey:LANDING_KEY,targets:targets.map(t=>({key:t.key,landable:t.landable,hazard:t.blackHole}))};
+ });
+ expect(result.targets[0].landable).toBe(false);
+ for(const n of [1,6,11])expect(result.targets[n].key).toBe(result.landingKey);
+ for(const n of [2,7])expect(result.targets[n].hazard).toBe(true);
+ expect(result.targets.filter(t=>t.landable)).toHaveLength(3);
+});
