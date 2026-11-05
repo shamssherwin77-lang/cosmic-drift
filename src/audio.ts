@@ -14,6 +14,7 @@ export class SpaceAudio {
   private anomaly={briefing:false,level:'clear' as HazardLevel,intensity:0,assist:false};
   private anomalyGain?:GainNode;private alarmGain?:GainNode;private anomalyFilter?:BiquadFilterNode;
   private surfaceState={density:0,landed:false};private driveTones:OscillatorNode[]=[];private airFilter?:BiquadFilterNode;
+  private relicGain?:GainNode;private relicIntensity=0;
   private lastDrive = -1; private lastCharge = -1;
   private settings = { ...DEFAULT_AUDIO };
   private enabled = false; private paused = false;
@@ -40,6 +41,8 @@ export class SpaceAudio {
         oscillator.type = 'sine'; oscillator.frequency.value = f; gain.gain.value = .09;
         oscillator.connect(gain).connect(this.engine); oscillator.start();this.driveTones.push(oscillator);
       }
+      this.relicGain=c.createGain();this.relicGain.gain.value=0;this.relicGain.connect(this.space);
+      for(const [frequency,level] of [[31,.13],[46.51,.065],[62.06,.025]]){const tone=c.createOscillator(),gain=c.createGain();tone.frequency.value=frequency;gain.gain.value=level;tone.connect(gain).connect(this.relicGain);tone.start();}
       const buffer = c.createBuffer(2, c.sampleRate * 4, c.sampleRate);
       let seed = 1237;
       for (let channel = 0; channel < 2; channel++) {
@@ -82,7 +85,7 @@ export class SpaceAudio {
     // Call play before awaiting anything: mobile browsers require a real user gesture.
     if (this.current && this.settings.musicEnabled && this.settings.music > 0) this.play(this.current);
     await this.ctx.resume();
-    this.apply();
+    this.apply();this.relic(this.relicIntensity);
   }
   private makeSlot(c: AudioContext): RecordingSlot {
     const element = new Audio(); element.loop = true; element.preload = 'none';
@@ -171,6 +174,7 @@ export class SpaceAudio {
     slot.element.pause(); slot.element.removeAttribute('src'); slot.element.load();
     if (this.ctx && this.ctx.state !== 'closed') { slot.gain.gain.cancelScheduledValues(this.ctx.currentTime); slot.gain.gain.value = 0; }
   }
+  relic(intensity:number){this.relicIntensity=Math.max(0,Math.min(1,intensity));if(this.ctx&&this.relicGain){this.relicGain.gain.cancelScheduledValues(this.ctx.currentTime);this.relicGain.gain.setTargetAtTime(this.relicIntensity*.55,this.ctx.currentTime,1.2);}}
   surface(density:number,landed:boolean){this.surfaceState={density:Math.max(0,Math.min(1,density)),landed};this.apply();}
   hazard(briefing:boolean,level:HazardLevel,intensity:number,assist=false){
     const changed=briefing!==this.anomaly.briefing||level!==this.anomaly.level;
@@ -196,7 +200,7 @@ export class SpaceAudio {
     clearTimeout(this.fadeTimer); clearTimeout(this.pauseTimer);
     document.removeEventListener('visibilitychange', this.visibility);
     for (const slot of this.slots) { slot.element.onwaiting = slot.element.onplaying = slot.element.onerror = null; this.release(slot); slot.source.disconnect(); slot.gain.disconnect(); }
-    this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;this.driveTones=[];this.airFilter=undefined;
+    this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;this.driveTones=[];this.airFilter=undefined;this.relicGain=undefined;
     void this.ctx?.close().catch(() => {}); this.ctx = null;
   }
 }

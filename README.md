@@ -187,3 +187,7 @@ six-axis thrust: W/S forward/reverse, A/D strafe, Space/Ctrl ascend/descend and
 Q/E roll. Click the game to capture the mouse; Escape releases it. The existing
 slider sets thrust speed. This option starts off so existing cruise and mobile
 controls retain their behavior. See [controls and integration](docs/descent-flight.md).
+
+## کشتی مادر باستانی
+
+در پرش چهارم و سپس هر پنج پرش، پیام وجود بقایای تمدنی باستانی در Cosmic Clouds نمایش داده می‌شود. دور از کشتی وارد نبولا می‌شوید؛ با چرخیدن و نزدیک‌شدن، نورهای باقی‌مانده و حلقهٔ شکستهٔ عظیم آن را پیدا کنید. امکان پرواز اطراف بدنه و میان سازه‌های باز وجود دارد. [راهنمای کشتی مادر](docs/ancient-meridian.md).

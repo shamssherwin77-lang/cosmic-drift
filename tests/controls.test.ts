@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {relicDistance,protectRelic,RELIC_ROTATION} from '../src/relic.ts';
 import assert from 'node:assert/strict';
 import { Euler, Vector3, Quaternion, Object3D } from 'three';
 import { LightJump } from '../src/light-jump.ts';
@@ -300,4 +301,12 @@ test('gentle landing reaches contact and takeoff returns to controllable flight'
  c.position.copy(LANDING_NORMAL).multiplyScalar(PLANET_RADIUS+terrainHeight(LANDING_NORMAL)+60);surface.update(0,c,world,c.position.clone(),false);assert.equal(surface.reading.canLand,true);assert.equal(surface.land(),true);
  for(let i=0;i<400;i++)surface.update(1/60,c,world,c.position.clone(),true);assert.equal(surface.status,'landed');near(altitudeAt(c.position,world.center),HULL_CLEARANCE,1e-6);near(c.speed,0);
  assert.equal(surface.takeoff(),true);for(let i=0;i<180;i++)surface.update(1/60,c,world,c.position.clone(),true);assert.equal(surface.status,'flight');assert.ok(altitudeAt(c.position,world.center)>80);surface.update(0,c,null,c.position,false);assert.equal(surface.reading.visible,false);
+});
+
+test('ancient hull has solid structural masses, open flight paths and swept contact in its rotated world frame',()=>{
+ const world={key:'5/1/-3',name:'Meridian',region:3,center:new Vector3(70000,14000,-42000)},place=(p:Vector3)=>p.applyQuaternion(RELIC_ROTATION).add(world.center),out=new Vector3();
+ assert.ok(relicDistance(new Vector3(0,5600,0))<0);assert.ok(relicDistance(new Vector3(3000,2000,0))>100);
+ const a=place(new Vector3(0,5600,2400)),b=place(new Vector3(0,5600,-2400));assert.ok(protectRelic(a,b,world,out));assert.ok(relicDistance(out.clone().sub(world.center).applyQuaternion(RELIC_ROTATION.clone().invert()))>=8);
+ assert.equal(protectRelic(place(new Vector3(3000,2000,2000)),place(new Vector3(3000,2000,-2000)),world,out),false);
+ assert.equal(protectRelic(place(new Vector3(20000,0,0)),place(new Vector3(23000,0,0)),world,out),false);
 });

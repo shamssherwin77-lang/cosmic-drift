@@ -1,10 +1,11 @@
 import * as T from 'three';
+import {RELIC_SECTOR,RELIC_KEY,RELIC_NAME,RELIC_REGION,RELIC_RADIUS,RELIC_FADE_START,RELIC_FADE_END,type RelicWorld} from '../relic';
 import { createBodies } from './bodies';
 import { LANDING_KEY,LANDING_SECTOR,LANDING_NORMAL,PLANET_NAME,PLANET_RADIUS,PLANET_FADE_START,PLANET_FADE_END,type LandingWorld } from '../planet';
 import { systemLayout } from './system-layout';
 import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_EXIT, SINGULARITY_FADE_START, SINGULARITY_FADE_END, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
 export type NavigationInfo = { current: string; next: string; distance: number; region: number; nextHazard?: boolean };
-export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean; landable:boolean };
+export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean; landable:boolean; relic?:boolean };
 
 export const SECTOR_SIZE = 14000;
 /** Coordinates, rather than visitation order, determine every landmark. */
@@ -21,7 +22,7 @@ export function describeSector(x: number, y: number, z: number) {
   if (home) heading.identity();
   const anchor = new T.Vector3(x, y, z).multiplyScalar(SECTOR_SIZE), system = systemLayout(identity, region, false);
   const starWorld = system.center.clone().applyQuaternion(heading).add(anchor);
-  return { key: `${x}/${y}/${z}`, blackHole: `${x}/${y}/${z}`===SINGULARITY_KEY, landable:`${x}/${y}/${z}`===LANDING_KEY, seed: identity, region, heading, anchor, starWorld, starColor: system.starColor, starRadius: system.starRadius, name: system.name };
+  return { key: `${x}/${y}/${z}`, blackHole: `${x}/${y}/${z}`===SINGULARITY_KEY, relic:`${x}/${y}/${z}`===RELIC_KEY, landable:`${x}/${y}/${z}`===LANDING_KEY, seed: identity, region, heading, anchor, starWorld, starColor: system.starColor, starRadius: system.starRadius, name: system.name };
 }
 
 /** A fixed pool bounds GPU memory. Evicted sectors are recreated identically. */
@@ -31,6 +32,7 @@ export function createUniverse(scene: T.Scene) {
   const markerCount = 343, positions = new Float32Array(markerCount * 3), colors = new Float32Array(markerCount * 3), sizes = new Float32Array(markerCount);
   const markerGeometry = new T.BufferGeometry();
   markerGeometry.setAttribute('position', new T.BufferAttribute(positions, 3)); markerGeometry.setAttribute('color', new T.BufferAttribute(colors, 3)); markerGeometry.setAttribute('size', new T.BufferAttribute(sizes, 1)); markerGeometry.setDrawRange(0, markerCount);
+  const relicRelative=new T.Vector3();
   const markerOrigin = new T.Vector3(), offset = new T.Vector3(), direction = new T.Vector3(), forward = new T.Vector3();
   const markerMaterial = new T.ShaderMaterial({
     uniforms: { offset: { value: offset }, jump: { value: 1 } }, vertexColors: true, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
@@ -39,8 +41,9 @@ export function createUniverse(scene: T.Scene) {
   });
   const beacons = new T.Points(markerGeometry, markerMaterial); beacons.frustumCulled = false; beacons.renderOrder = 3; markers.add(beacons);
   const illumination={direction:new T.Vector3(-.5,.7,-.3),color:new T.Color('#d9e6ff'),intensity:2};
-  let cell = '', quality = 'Medium',completedJumps=0,hostVisit=false,planetVisit=false;
-  const singularityHost=describeSector(...SINGULARITY_SECTOR),planetHost=describeSector(...LANDING_SECTOR);
+  let cell = '', quality = 'Medium',completedJumps=0,hostVisit=false,planetVisit=false,relicVisit=false;
+  const singularityHost=describeSector(...SINGULARITY_SECTOR),planetHost=describeSector(...LANDING_SECTOR),relicHost=describeSector(...RELIC_SECTOR);
+  const relicWorld:RelicWorld={key:RELIC_KEY,name:RELIC_NAME,region:RELIC_REGION,center:relicHost.starWorld.clone().add(new T.Vector3(8000,1000,9000))};
   const landingWorld:LandingWorld={key:LANDING_KEY,name:PLANET_NAME,region:planetHost.region,center:planetHost.starWorld.clone().add(new T.Vector3(0,-500,7500))};
   // Find a deterministic quiet entry point instead of entering another system's
   // immediate vicinity (or the singularity domain) on the far exploration shell.
@@ -53,9 +56,11 @@ export function createUniverse(scene: T.Scene) {
     if(entry.distanceTo(singularityHost.starWorld)<SINGULARITY_DOMAIN+1500)continue;
     if(clearance>bestEntry){bestEntry=clearance;explorationNormal.copy(n);}
   }
+  const relicEntry=new T.Vector3();let relicEntryClearance=-Infinity;
+  for(let i=0;i<32;i++){const y=1-2*(i+.5)/32,a=i*2.399963229728653,n=new T.Vector3(Math.cos(a)*Math.sqrt(1-y*y),y,Math.sin(a)*Math.sqrt(1-y*y));const p=relicWorld.center.clone().addScaledVector(n,34000),[x,yc,z]=sectorAt(p);let clearance=Infinity;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){const sector=describeSector(x+dx,yc+dy,z+dz);clearance=Math.min(clearance,p.distanceTo(sector.starWorld));}if(clearance>relicEntryClearance){relicEntryClearance=clearance;relicEntry.copy(p);}}
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position);
-    const retained=[...(planetVisit&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?[planetHost]:[]),...(hostVisit&&position.distanceTo(singularityHost.starWorld)<SINGULARITY_FADE_END?[singularityHost]:[])];
+    const retained=[...(relicVisit&&position.distanceTo(relicWorld.center)<RELIC_FADE_END?[relicHost]:[]),...(planetVisit&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?[planetHost]:[]),...(hostVisit&&position.distanceTo(singularityHost.starWorld)<SINGULARITY_FADE_END?[singularityHost]:[])];
     const key = `${x}/${y}/${z}:${retained.map(s=>s.key).join(',')}`;
     if (key === cell) return;
     cell = key; markerOrigin.set(x,y,z).multiplyScalar(SECTOR_SIZE);
@@ -85,7 +90,7 @@ export function createUniverse(scene: T.Scene) {
   const location=(position:T.Vector3)=>{
     assign(position);
     let nearest=slots[0].sector!,nearestDistance=Infinity;
-    for(const slot of slots){const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
+    for(const slot of slots){if(relicVisit&&!slot.sector!.relic&&slot.sector!.starWorld.distanceTo(relicWorld.center)<RELIC_RADIUS+1200)continue;const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
     const host=hostVisit?singularityHost:slots.find(s=>s.sector?.blackHole)?.sector;
     if(host&&host.starWorld.distanceTo(position)<SINGULARITY_DOMAIN){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
     if(planetVisit&&position.distanceTo(landingWorld.center)<PLANET_RADIUS+1600){nearest=planetHost;nearestDistance=position.distanceTo(landingWorld.center);}
@@ -95,38 +100,41 @@ export function createUniverse(scene: T.Scene) {
     const {nearest,nearestDistance}=location(position);forward.set(0,0,-1).applyQuaternion(heading);
     if(completedJumps%5===1)return{nearest,nearestDistance,target:planetHost};
     if(completedJumps%5===2)return{nearest,nearestDistance,target:singularityHost};
+    if(completedJumps%5===3)return{nearest,nearestDistance,target:relicHost};
     let target=nearest,best=-Infinity;
-    for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key||sector.landable||sector.blackHole)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
+    for(const slot of slots){const sector=slot.sector!;if(sector.key===nearest.key||sector.landable||sector.blackHole||sector.relic)continue;direction.copy(sector.starWorld).sub(position);const distance=direction.length();const score=direction.normalize().dot(forward)-distance/100000;if(score>best){best=score;target=sector;}}
     return{nearest,nearestDistance,target};
   };
   return {
-    recordJump(key:string){completedJumps++;hostVisit=key===SINGULARITY_KEY;planetVisit=key===LANDING_KEY;},
+    recordJump(key:string){completedJumps++;hostVisit=key===SINGULARITY_KEY;planetVisit=key===LANDING_KEY;relicVisit=key===RELIC_KEY;},
     setJump(energy: number) { markerMaterial.uniforms.jump.value = 1 - T.MathUtils.smoothstep(energy,.12,.65); for (const slot of slots) slot.bodies.setJump(energy); },
     configure(value: string) { quality = value; for (const slot of slots) slot.bodies.configure(value); },
     update(dt: number, time: number, _region: number, position: T.Vector3) {
-      assign(position); offset.copy(position).sub(markerOrigin);
+      assign(position); offset.copy(position).sub(markerOrigin);relicRelative.copy(relicWorld.center).sub(position);
       const hostDistance=position.distanceTo(singularityHost.starWorld);
       if(hostDistance<SINGULARITY_DOMAIN)hostVisit=true;else if(hostDistance>=SINGULARITY_EXIT)hostVisit=false;
       for (const slot of slots) {
         const sector = slot.sector!;
         slot.bodies.update(dt, time, sector.region, position);
         // Landmark hosts and all their bodies share one world-space fade envelope.
-        const trackedPlanet=sector.landable&&planetVisit,trackedHole=sector.blackHole&&hostVisit;
-        const hostDistance=sector.starWorld.distanceTo(position);
-        const hostFade=1-T.MathUtils.smoothstep(hostDistance,trackedPlanet?PLANET_FADE_START:SINGULARITY_FADE_START,trackedPlanet?PLANET_FADE_END:SINGULARITY_FADE_END);
+        const trackedPlanet=sector.landable&&planetVisit,trackedHole=sector.blackHole&&hostVisit,trackedRelic=sector.relic&&relicVisit;
+        const hostDistance=trackedRelic?relicWorld.center.distanceTo(position):sector.starWorld.distanceTo(position);
+        const hostFade=1-T.MathUtils.smoothstep(hostDistance,trackedRelic?RELIC_FADE_START:trackedPlanet?PLANET_FADE_START:SINGULARITY_FADE_START,trackedRelic?RELIC_FADE_END:trackedPlanet?PLANET_FADE_END:SINGULARITY_FADE_END);
         for (const object of slot.bodies.group.children) {
           const distance = object.position.length();
-          const fade = trackedPlanet||trackedHole?hostFade:1-T.MathUtils.smoothstep(distance,10000,13000);
+          const fade = trackedPlanet||trackedHole||trackedRelic?hostFade:1-T.MathUtils.smoothstep(distance,10000,13000);
           if (object instanceof T.Mesh) {
             const material = object.material as T.ShaderMaterial;
             if (material.uniforms?.alpha) material.uniforms.alpha.value *= fade;
             else if ('opacity' in material) material.opacity *= fade;
           }
           object.visible = object.visible && fade > 0;
+          if(relicVisit&&object.position.distanceTo(relicRelative)<RELIC_RADIUS+1200)object.visible=false;
           if(sector.blackHole&&(object.userData.kind==='star'||object.name==='stellar-corona'))object.visible=false;
         }
       }
     },
+    relicAt(position:T.Vector3){const distance=position.distanceTo(relicWorld.center);return relicVisit&&distance<RELIC_FADE_END||distance<RELIC_RADIUS+3000?relicWorld:null;},
     planetAt(position:T.Vector3){const distance=position.distanceTo(landingWorld.center),hostDistance=position.distanceTo(planetHost.starWorld);landingWorld.visibility=1-T.MathUtils.smoothstep(hostDistance,PLANET_FADE_START,PLANET_FADE_END);return (planetVisit&&hostDistance<PLANET_FADE_END||distance<PLANET_RADIUS+1200)?landingWorld:null;},
     singularityAt(position:T.Vector3){
       const {nearest,nearestDistance}=location(position),distance=position.distanceTo(singularityHost.starWorld);
@@ -141,7 +149,7 @@ export function createUniverse(scene: T.Scene) {
     },
     jumpTarget(position:T.Vector3,heading:T.Quaternion):JumpTarget{
       const {target}=destination(position,heading),approach=target.starWorld.clone().sub(position).normalize();
-      const blackHole=target.blackHole,landable=target.landable,arrival=target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300);
+      const blackHole=target.blackHole,landable=target.landable,relic=target.relic,arrival=target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300);
       // Safe destinations must also land outside the unique host's domain.
       const host=singularityHost;
       if(!blackHole&&arrival.distanceTo(host.starWorld)<SINGULARITY_DOMAIN+500){
@@ -155,11 +163,13 @@ export function createUniverse(scene: T.Scene) {
         approach.copy(explorationNormal).multiplyScalar(-Math.cos(T.MathUtils.degToRad(110))).addScaledVector(tangent,Math.sin(T.MathUtils.degToRad(110))).normalize();
       }
       else if(arrival.distanceTo(landingWorld.center)<PLANET_RADIUS+4200){arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(landingWorld.center).normalize(),4300);approach.copy(target.starWorld).sub(arrival).normalize();}
-      return{position:arrival,direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole,landable};
+      if(!relic&&arrival.distanceTo(relicWorld.center)<RELIC_RADIUS+6000){arrival.copy(relicWorld.center).addScaledVector(target.starWorld.clone().sub(relicWorld.center).normalize(),RELIC_RADIUS+6500);approach.copy(target.starWorld).sub(arrival).normalize();}
+      if(relic){arrival.copy(relicEntry);const normal=arrival.clone().sub(relicWorld.center).normalize(),tangent=new T.Vector3().crossVectors(normal,Math.abs(normal.y)>.9?new T.Vector3(1,0,0):new T.Vector3(0,1,0)).normalize();approach.copy(normal).multiplyScalar(-Math.cos(T.MathUtils.degToRad(55))).addScaledVector(tangent,Math.sin(T.MathUtils.degToRad(55))).normalize();}
+      return{relic,position:arrival,direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole,landable};
     },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
       const {nearest,nearestDistance,target}=destination(position,heading);
-      return {current:nearestDistance<(nearest.blackHole?SINGULARITY_DOMAIN:nearest.landable&&planetVisit?PLANET_RADIUS+1600:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:planetVisit&&nearestDistance>5200&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?planetHost.region:nearest.region,nextHazard:target.blackHole};
+      return {current:nearestDistance<(nearest.blackHole?SINGULARITY_DOMAIN:nearest.landable&&planetVisit?PLANET_RADIUS+1600:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:relicVisit&&nearestDistance>5200&&position.distanceTo(relicWorld.center)<RELIC_FADE_END?RELIC_REGION:planetVisit&&nearestDistance>5200&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?planetHost.region:nearest.region,nextHazard:target.blackHole};
     },
     dispose() { for (const slot of slots) slot.bodies.dispose(); markers.removeFromParent();markerGeometry.dispose();markerMaterial.dispose(); },
   };

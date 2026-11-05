@@ -13,10 +13,12 @@ import type {JumpTarget,NavigationInfo} from './graphics/universe';
 import {JumpBriefing,SingularityWarning} from './singularity-ui';
 import {NO_PLANET,type PlanetReading} from './planet';
 import {PlanetPanel} from './planet-ui';
+import {NO_RELIC,RELIC_NAME,type RelicReading} from './relic';
 import'./style.css';
 
 function App(){
  const mode='Manual Flight';
+ const[relic,setRelic]=useState<RelicReading>(NO_RELIC);
  const[planet,setPlanet]=useState<PlanetReading>(NO_PLANET),[planetNotice,setPlanetNotice]=useState(false);
  const surfaceActions=useRef({land:()=>{},takeoff:()=>{},level:()=>{}});
  const[freeFlight,setFreeFlight]=useState(false);
@@ -36,15 +38,16 @@ function App(){
  const flight=useRef<Flight>({mode,freeFlight,speed,paused,region,quality,reduced,motion,cockpit,started,blocked:!started||!!panel||jumpBusy||!!briefing,hazardHold:!!briefing,transitAssist:assist,sensitivity,touchSensitivity,invertMouseX,invertMouseY,lighting,bloom,performanceMode,adaptive,worldSeed});
  flight.current={mode,freeFlight,speed,paused,region,quality,reduced,motion,cockpit,started,blocked:!started||!!panel||jumpBusy||!!briefing,hazardHold:!!briefing,transitAssist:assist,sensitivity,touchSensitivity,invertMouseX,invertMouseY,lighting,bloom,performanceMode,adaptive,worldSeed};
  useEffect(()=>{try{return createScene(host.current!,()=>flight.current,controller.current,joystick.current!,{
-  onPlanet:reading=>{setPlanet(reading);if(!reading.visible&&!jump.current.busy)setPlanetNotice(false);},onSurfaceControls:actions=>{surfaceActions.current=actions;},
+  onRelic:setRelic,onPlanet:reading=>{setPlanet(reading);if(!reading.visible&&!jump.current.busy)setPlanetNotice(false);},onSurfaceControls:actions=>{surfaceActions.current=actions;},
   onSpeed:delta=>setSpeed(value=>Math.max(0,Math.min(1200,value+delta))),
   onPlanner:plan=>{planner.current=plan;},getJumpTarget:()=>acceptedTarget.current,onSingularity:reading=>{setHazard(reading);},
   onNavigation:info=>{setNavigationInfo(info);setRegion(info.region);},jump:jump.current,onPhase:setJumpPhase,
-  onDestination:(r,seed)=>{setRegion(r);setWorldSeed(seed);if(acceptedTarget.current?.blackHole||acceptedTarget.current?.landable)setSpeed(18);if(acceptedTarget.current?.landable)setPlanetNotice(true);},onAudio:(drive,charge,pause)=>audio.current.jump(drive,charge,pause),
+  onDestination:(r,seed)=>{setRegion(r);setWorldSeed(seed);if(acceptedTarget.current?.blackHole||acceptedTarget.current?.landable||acceptedTarget.current?.relic)setSpeed(18);if(acceptedTarget.current?.landable)setPlanetNotice(true);},onAudio:(drive,charge,pause)=>audio.current.jump(drive,charge,pause),
  });}catch{setError('WebGL could not start. Please enable hardware acceleration and reload.');}},[]);
  useEffect(()=>{audio.current.onMusicState=setMusicPlayback;return()=>audio.current.dispose();},[]);
  useEffect(()=>{const id=setInterval(()=>setActualSpeed(controller.current.speed),200);return()=>clearInterval(id);},[]);
  useEffect(()=>{audio.current.set(sound,audioSettings,paused);},[sound,audioSettings,paused]);
+ useEffect(()=>{audio.current.relic(relic.visible?relic.intensity:0);},[relic.visible,relic.intensity]);
  useEffect(()=>{audio.current.surface(planet.visible?planet.atmosphere:0,planet.status==='landed');},[planet.visible,planet.atmosphere,planet.status]);
  useEffect(()=>{audio.current.hazard(!!briefing?.blackHole,hazard.level,hazard.intensity,assist);},[briefing,hazard.level,hazard.intensity,assist]);
  useEffect(()=>{if(hazard.level==='clear')setAssist(false);},[hazard.id,hazard.level]);
@@ -68,7 +71,7 @@ function App(){
  const chooseTrack=async(track:MusicTrack)=>{try{await audio.current.start(track);setAudioSettings(s=>({...s,track,musicEnabled:true}));setSound(true);}catch{audioError();}};
  const fullscreen=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{setError('Fullscreen is unavailable in this browser.');}};
  const commitJump=(target:JumpTarget)=>{acceptedTarget.current=target;if(jump.current.start(region,worldSeed,paused)){setBriefing(null);setPanel('');setJumpPhase('charging');setPlanetNotice(false);if(target.landable)setHidden(false);}};
- const startJump=()=>{if(!started||paused||jump.current.busy||briefingRef.current||!planner.current)return;const target=planner.current();if(target.blackHole||target.landable){setPanel('');setHidden(false);setBriefing(target);}else commitJump(target);};jumpRequest.current=startJump;
+ const startJump=()=>{if(!started||paused||jump.current.busy||briefingRef.current||!planner.current)return;const target=planner.current();if(target.blackHole||target.landable||target.relic){setPanel('');setHidden(false);setBriefing(target);}else commitJump(target);};jumpRequest.current=startJump;
  const jumpStatus=paused&&jumpBusy?'Jump paused':jumpPhase==='charging'?'Charging drive…':jumpPhase==='accelerating'?'Accelerating…':jumpPhase==='transit'?'Crossing the light…':jumpPhase==='arriving'?'Entering the next system…':jumpPhase==='stabilized'?`Arrived: ${navigationInfo.current}`:'';
  return <main data-jump-phase={jumpPhase} data-world-seed={worldSeed} data-region={region} data-hazard={hazard.level} data-transit-assist={assist} className={`manual-flight ${started?'journey-started':'preflight'} ${hidden?'hidden-ui':''} ${panel||paused||jumpBusy||briefing||planet.status!=='flight'?'controls-blocked':''} ${jumpBusy?'jump-active':''}`}>
   <div className="universe" ref={host}/><div className="vignette"/>
@@ -96,8 +99,9 @@ function App(){
    </section>
   </>}
   {started&&!hidden&&!jumpBusy&&!briefing&&<PlanetPanel reading={planet} notice={planetNotice} onDismiss={()=>setPlanetNotice(false)} onLand={()=>{surfaceActions.current.land();setSpeed(0);}} onTakeoff={()=>{surfaceActions.current.takeoff();setSpeed(18);}} onLevel={()=>{if(matchMedia('(any-pointer: fine)').matches)setFreeFlight(true);surfaceActions.current.level();}}/>}
+  {started&&!hidden&&!jumpBusy&&!briefing&&relic.visible&&relic.discovered&&<section className="planet-panel relic-contact" role="region" aria-label="Ancient vessel contact"><div className="planet-heading"><Compass size={15}/><span>ANCIENT VESSEL · POWER RESIDUAL</span></div><p className="relic-title">{RELIC_NAME}</p><p className="planet-notice">Unidentified civilization. The vessel is abandoned, but its lights are still alive.</p><div className="planet-range"><small>SIGNAL RANGE</small><b>{Math.round(relic.distance).toLocaleString()} <em>u</em></b></div></section>}
   {started&&!jumpBusy&&!briefing&&<SingularityWarning reading={hazard} assist={assist} onActivate={()=>setAssist(true)}/>}
-  {briefing&&<JumpBriefing destination={briefing.name} landable={briefing.landable} onConfirm={()=>commitJump(briefing)} onCancel={()=>setBriefing(null)}/>}
+  {briefing&&<JumpBriefing destination={briefing.name} landable={briefing.landable} relic={briefing.relic} onConfirm={()=>commitJump(briefing)} onCancel={()=>setBriefing(null)}/>}
   {error&&<div role="alert" className="error">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}
  </main>;
 }
