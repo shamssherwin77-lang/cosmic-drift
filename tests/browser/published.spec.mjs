@@ -9,11 +9,15 @@ test('an unmodified desktop journey reaches Avaris on the second Jump',async({pa
  await page.getByRole('button',{name:'Light Jump',exact:true}).click();
  await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:60000});
  await page.keyboard.press('j');
+ await expect(page.getByRole('alertdialog')).toContainText('You will arrive far from the planet');
+ await page.screenshot({path:'test-results/avaris-before-jump.png'});
+ await page.getByRole('button',{name:'Enter nebula',exact:false}).click();
  await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');
  await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:60000});
  const panel=page.getByRole('region',{name:'Planet approach',exact:true});
  await expect(panel).toBeVisible();await expect(panel).toContainText('You can descend');
  await expect(panel.locator('.planet-range b')).toContainText(/^[0-9,]+ u$/);
+ expect(Number((await panel.locator('.planet-range b').innerText()).replace(/[^0-9]/g,''))).toBeGreaterThan(15000);
  await expect(page.locator('.navigation-caption')).toContainText('Golden Core');
  await page.screenshot({path:'test-results/avaris-published-desktop.png'});
  await page.getByRole('button',{name:'Light Jump',exact:true}).click();

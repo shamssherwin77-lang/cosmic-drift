@@ -6,7 +6,7 @@ async function worldData(page){
 
 test('the second Jump announces a unique landable world and the recurring black-hole route remains intact',async({page})=>{
  test.setTimeout(120000);await page.route('**/src/main.tsx*',async route=>{const response=await route.fetch(),source=await response.text();await route.fulfill({response,body:source.replace('new FlightController()','(()=>{window.planetTraveler??=new FlightController();return window.planetTraveler;})()')});});await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
- for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
+ for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();if(i===1){const advisory=page.getByRole('alertdialog');await expect(advisory).toContainText('You will arrive far from the planet');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle');await page.getByRole('button',{name:'Cancel jump',exact:true}).click();await expect(advisory).toHaveCount(0);await page.getByRole('button',{name:'Light Jump',exact:true}).click();await page.getByRole('button',{name:'Enter nebula',exact:false}).click();}await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
  const panel=page.getByRole('region',{name:'Planet approach',exact:true});await expect(panel).toBeVisible();await expect(panel).toContainText('AVARIS',{ignoreCase:true});await expect(panel).toContainText('You can descend');await expect(panel).toContainText('DISTANCE TO SURFACE');await page.screenshot({path:'test-results/avaris-orbit.png'});await expect(page.getByRole('button',{name:'Dismiss planet notice',exact:true})).toBeVisible();await page.evaluate(()=>{window.planetTraveler.position.y+=60000;});await expect(panel).toHaveCount(0);
  await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toContainText('supermassive black hole');
 });
@@ -35,12 +35,12 @@ test('Avaris stays on Jump two even after steering toward or passing its host, a
  const result=await page.evaluate(async()=>{
   const T=await import('/node_modules/three/build/three.module.js'),{createUniverse,describeSector}=await import('/src/graphics/universe.ts'),{LANDING_SECTOR,LANDING_KEY}=await import('/src/planet.ts');
   const world=createUniverse(new T.Scene()),host=describeSector(...LANDING_SECTOR),p=new T.Vector3(),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,-1),host.starWorld.clone().normalize());world.configure('Low');world.update(.1,0,0,p);
-  const first=world.jumpTarget(p,q);world.recordJump(first.key);p.copy(host.starWorld);world.update(.1,1,host.region,p);const second=world.jumpTarget(p,q);
-  world.recordJump(second.key);p.copy(second.position);const targets=[first,second];
+  const first=world.jumpTarget(p,q);world.recordJump(first.key);p.copy(host.starWorld);world.update(.1,1,host.region,p);const second=world.jumpTarget(p,q);const center=host.starWorld.clone().add(new T.Vector3(0,-500,7500));const arrivalRange=second.position.distanceTo(center)- (await import('/src/planet.ts')).PLANET_RADIUS,arrivalFacing=second.direction.dot(center.clone().sub(second.position).normalize());
+  world.recordJump(second.key);p.copy(second.position);world.update(.1,1,second.region,p);const entryRegion=world.navigation(p,q).region,entryHazard=world.singularityAt(p);const targets=[first,second];
   for(let n=2;n<12;n++){world.update(.1,n,0,p);const target=world.jumpTarget(p,q);if(world.jumpTarget(p,q).key!==target.key)throw Error('Planning advanced the route');targets.push(target);world.recordJump(target.key);p.copy(target.position);}
-  world.dispose();return{landingKey:LANDING_KEY,targets:targets.map(t=>({key:t.key,landable:t.landable,hazard:t.blackHole}))};
+  world.dispose();return{landingKey:LANDING_KEY,arrivalRange,arrivalFacing,entryRegion,entryHazard:!!entryHazard,targets:targets.map(t=>({key:t.key,landable:t.landable,hazard:t.blackHole}))};
  });
- expect(result.targets[0].landable).toBe(false);
+ expect(result.targets[0].landable).toBe(false);expect(result.arrivalRange).toBeGreaterThan(15000);expect(result.arrivalFacing).toBeLessThan(0);expect(result.entryRegion).toBe(2);expect(result.entryHazard).toBe(false);
  for(const n of [1,6,11])expect(result.targets[n].key).toBe(result.landingKey);
  for(const n of [2,7])expect(result.targets[n].hazard).toBe(true);
  expect(result.targets.filter(t=>t.landable)).toHaveLength(3);

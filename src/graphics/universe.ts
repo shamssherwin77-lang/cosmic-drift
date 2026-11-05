@@ -42,6 +42,17 @@ export function createUniverse(scene: T.Scene) {
   let cell = '', quality = 'Medium',completedJumps=0,hostVisit=false,planetVisit=false;
   const singularityHost=describeSector(...SINGULARITY_SECTOR),planetHost=describeSector(...LANDING_SECTOR);
   const landingWorld:LandingWorld={key:LANDING_KEY,name:PLANET_NAME,region:planetHost.region,center:planetHost.starWorld.clone().add(new T.Vector3(0,-500,7500))};
+  // Find a deterministic quiet entry point instead of entering another system's
+  // immediate vicinity (or the singularity domain) on the far exploration shell.
+  const explorationNormal=LANDING_NORMAL.clone();let bestEntry=-Infinity;
+  for(let i=-1;i<48;i++){
+    const y=i<0?LANDING_NORMAL.y:1-2*(i+.5)/48,angle=i*2.399963229728653;
+    const n=i<0?LANDING_NORMAL.clone():new T.Vector3(Math.cos(angle)*Math.sqrt(1-y*y),y,Math.sin(angle)*Math.sqrt(1-y*y));
+    const entry=landingWorld.center.clone().addScaledVector(n,PLANET_RADIUS+18000),[x,yc,z]=sectorAt(entry);let clearance=Infinity;
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){const sector=describeSector(x+dx,yc+dy,z+dz);if(!sector.landable)clearance=Math.min(clearance,entry.distanceTo(sector.starWorld));}
+    if(entry.distanceTo(singularityHost.starWorld)<SINGULARITY_DOMAIN+1500)continue;
+    if(clearance>bestEntry){bestEntry=clearance;explorationNormal.copy(n);}
+  }
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position);
     const retained=[...(planetVisit&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?[planetHost]:[]),...(hostVisit&&position.distanceTo(singularityHost.starWorld)<SINGULARITY_FADE_END?[singularityHost]:[])];
@@ -137,13 +148,18 @@ export function createUniverse(scene: T.Scene) {
         arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(host.starWorld).normalize(),4300);
         approach.copy(target.starWorld).sub(arrival).normalize();
       }
-      if(landable){arrival.copy(landingWorld.center).addScaledVector(LANDING_NORMAL,PLANET_RADIUS+3600);approach.copy(landingWorld.center).sub(arrival).normalize();}
+      if(landable){
+        // Enter the nebula at exploration range; discovery requires turning and flying.
+        arrival.copy(landingWorld.center).addScaledVector(explorationNormal,PLANET_RADIUS+18000);
+        const tangent=new T.Vector3().crossVectors(explorationNormal,Math.abs(explorationNormal.y)>.9?new T.Vector3(1,0,0):new T.Vector3(0,1,0)).normalize();
+        approach.copy(explorationNormal).multiplyScalar(-Math.cos(T.MathUtils.degToRad(110))).addScaledVector(tangent,Math.sin(T.MathUtils.degToRad(110))).normalize();
+      }
       else if(arrival.distanceTo(landingWorld.center)<PLANET_RADIUS+4200){arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(landingWorld.center).normalize(),4300);approach.copy(target.starWorld).sub(arrival).normalize();}
       return{position:arrival,direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole,landable};
     },
     navigation(position:T.Vector3,heading:T.Quaternion): NavigationInfo {
       const {nearest,nearestDistance,target}=destination(position,heading);
-      return {current:nearestDistance<(nearest.blackHole?SINGULARITY_DOMAIN:nearest.landable&&planetVisit?PLANET_RADIUS+1600:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:nearest.region,nextHazard:target.blackHole};
+      return {current:nearestDistance<(nearest.blackHole?SINGULARITY_DOMAIN:nearest.landable&&planetVisit?PLANET_RADIUS+1600:5200)?nearest.name:'Interstellar passage',next:target.name,distance:Math.round(target.starWorld.distanceTo(position)),region:planetVisit&&nearestDistance>5200&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?planetHost.region:nearest.region,nextHazard:target.blackHole};
     },
     dispose() { for (const slot of slots) slot.bodies.dispose(); markers.removeFromParent();markerGeometry.dispose();markerMaterial.dispose(); },
   };

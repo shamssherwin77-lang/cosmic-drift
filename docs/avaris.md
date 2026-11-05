@@ -7,9 +7,11 @@ Descent controls, wheel throttle and existing black-hole encounter remain intact
 ## Finding and flying
 
 Jump 2, 7, 12, etc. offers the same fixed host system, Thal-EF8E (sector 1/0/0), in
-Golden Core. Arrival faces the planet and chooses gentle cruise speed. A dismissible
-notice explicitly tells the pilot that this nebula contains a world they can land
-on. It appears on each arrival. Avaris is reserved for these scheduled Jumps;
+Golden Core. Before the drive starts, an exploration advisory announces Avaris and explains
+that arrival is far from the planet. Cancel leaves the route unchanged; Enter nebula
+starts the Jump. Arrival is approximately 18,000 u above the surface with the world
+110 degrees off the nose, requiring exploration and actual travel to discover it.
+A dismissible arrival notice repeats that this nebula contains a world they can land on. Avaris is reserved for these scheduled Jumps;
 steering toward its host or passing close to that system does not skip Jump 2. Jump 3, 8, 13 still visits the unique black-hole host.
 
 The orbital instrument reads distance remaining to the surface. As approach

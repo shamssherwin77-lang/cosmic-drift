@@ -46,7 +46,7 @@ function App(){
  useEffect(()=>{const id=setInterval(()=>setActualSpeed(controller.current.speed),200);return()=>clearInterval(id);},[]);
  useEffect(()=>{audio.current.set(sound,audioSettings,paused);},[sound,audioSettings,paused]);
  useEffect(()=>{audio.current.surface(planet.visible?planet.atmosphere:0,planet.status==='landed');},[planet.visible,planet.atmosphere,planet.status]);
- useEffect(()=>{audio.current.hazard(!!briefing,hazard.level,hazard.intensity,assist);},[briefing,hazard.level,hazard.intensity,assist]);
+ useEffect(()=>{audio.current.hazard(!!briefing?.blackHole,hazard.level,hazard.intensity,assist);},[briefing,hazard.level,hazard.intensity,assist]);
  useEffect(()=>{if(hazard.level==='clear')setAssist(false);},[hazard.id,hazard.level]);
  useEffect(()=>{try{localStorage.setItem(AUDIO_STORAGE_KEY,JSON.stringify(audioSettings));}catch{}},[audioSettings]);
  useEffect(()=>{const listener=()=>setFull(!!document.fullscreenElement);document.addEventListener('fullscreenchange',listener);return()=>document.removeEventListener('fullscreenchange',listener);},[]);
@@ -68,7 +68,7 @@ function App(){
  const chooseTrack=async(track:MusicTrack)=>{try{await audio.current.start(track);setAudioSettings(s=>({...s,track,musicEnabled:true}));setSound(true);}catch{audioError();}};
  const fullscreen=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{setError('Fullscreen is unavailable in this browser.');}};
  const commitJump=(target:JumpTarget)=>{acceptedTarget.current=target;if(jump.current.start(region,worldSeed,paused)){setBriefing(null);setPanel('');setJumpPhase('charging');setPlanetNotice(false);if(target.landable)setHidden(false);}};
- const startJump=()=>{if(!started||paused||jump.current.busy||briefingRef.current||!planner.current)return;const target=planner.current();if(target.blackHole){setPanel('');setHidden(false);setBriefing(target);}else commitJump(target);};jumpRequest.current=startJump;
+ const startJump=()=>{if(!started||paused||jump.current.busy||briefingRef.current||!planner.current)return;const target=planner.current();if(target.blackHole||target.landable){setPanel('');setHidden(false);setBriefing(target);}else commitJump(target);};jumpRequest.current=startJump;
  const jumpStatus=paused&&jumpBusy?'Jump paused':jumpPhase==='charging'?'Charging drive…':jumpPhase==='accelerating'?'Accelerating…':jumpPhase==='transit'?'Crossing the light…':jumpPhase==='arriving'?'Entering the next system…':jumpPhase==='stabilized'?`Arrived: ${navigationInfo.current}`:'';
  return <main data-jump-phase={jumpPhase} data-world-seed={worldSeed} data-region={region} data-hazard={hazard.level} data-transit-assist={assist} className={`manual-flight ${started?'journey-started':'preflight'} ${hidden?'hidden-ui':''} ${panel||paused||jumpBusy||briefing||planet.status!=='flight'?'controls-blocked':''} ${jumpBusy?'jump-active':''}`}>
   <div className="universe" ref={host}/><div className="vignette"/>
@@ -97,7 +97,7 @@ function App(){
   </>}
   {started&&!hidden&&!jumpBusy&&!briefing&&<PlanetPanel reading={planet} notice={planetNotice} onDismiss={()=>setPlanetNotice(false)} onLand={()=>{surfaceActions.current.land();setSpeed(0);}} onTakeoff={()=>{surfaceActions.current.takeoff();setSpeed(18);}} onLevel={()=>{if(matchMedia('(any-pointer: fine)').matches)setFreeFlight(true);surfaceActions.current.level();}}/>}
   {started&&!jumpBusy&&!briefing&&<SingularityWarning reading={hazard} assist={assist} onActivate={()=>setAssist(true)}/>}
-  {briefing&&<JumpBriefing destination={briefing.name} onConfirm={()=>commitJump(briefing)} onCancel={()=>setBriefing(null)}/>}
+  {briefing&&<JumpBriefing destination={briefing.name} landable={briefing.landable} onConfirm={()=>commitJump(briefing)} onCancel={()=>setBriefing(null)}/>}
   {error&&<div role="alert" className="error">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}
  </main>;
 }

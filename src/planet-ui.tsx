@@ -5,7 +5,7 @@ export function PlanetPanel({reading,notice,onDismiss,onLand,onTakeoff,onLevel}:
  if(!reading.visible&&!notice)return null;
  return <section className={`planet-panel ${reading.danger?'terrain-danger':''}`} aria-label="Planet approach" data-surface-status={reading.status}>
   <div className="planet-heading"><Mountain size={15}/><span>{PLANET_NAME} · LANDABLE WORLD</span>{notice&&<button aria-label="Dismiss planet notice" onClick={onDismiss}><X size={14}/></button>}</div>
-  {notice&&<p className="planet-notice" role="status">An important world lies in this nebula. You can descend, fly between its mountains and land on its plains.</p>}
+  {notice&&<p className="planet-notice" role="status">An important world lies in this nebula. Your jump ends far from it; explore to find it. You can descend, fly between its mountains and land on its plains.</p>}
   {reading.visible&&<>
    <div className="planet-range"><small>DISTANCE TO SURFACE</small><b>{Math.round(reading.surfaceDistance).toLocaleString()} <em>u</em></b></div>
    <div className="surface-instruments" style={{opacity:reading.surfaceBlend,maxHeight:reading.surfaceBlend>.02?170:0}} aria-hidden={reading.surfaceBlend<.02}>

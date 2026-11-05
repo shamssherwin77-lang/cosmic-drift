@@ -4,7 +4,7 @@ async function hazardousCourse(page){
  await page.route('**/course-harness',r=>r.fulfill({contentType:'text/html',body:'<html></html>'}));await page.goto('/course-harness');
  return page.evaluate(async()=>{
   const T=await import('/node_modules/three/build/three.module.js'),{createUniverse,describeSector}=await import('/src/graphics/universe.ts');
-  const world=createUniverse(new T.Scene()),origin=new T.Vector3();world.update(.1,0,0,origin);
+  const world=createUniverse(new T.Scene()),origin=new T.Vector3();world.update(.1,0,0,origin);world.recordJump('0/0/0');world.recordJump('0/0/0');
   for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++){
    const sector=describeSector(x,y,z);if(sector.region!==4)continue;
    const d=sector.starWorld.clone().normalize(),yaw=Math.atan2(-d.x,-d.z),pitch=Math.asin(d.y),q=new T.Quaternion().setFromEuler(new T.Euler(pitch,yaw,0,'YXZ')),target=world.jumpTarget(origin,q);
@@ -13,6 +13,8 @@ async function hazardousCourse(page){
  });
 }
 async function injectPilot(page,course){
+ // Start this isolated hazard fixture at its scheduled third Jump.
+ await page.route('**/src/graphics/universe.ts*',async route=>{const response=await route.fetch(),source=await response.text();expect(source).toMatch(/completedJumps\s*=\s*0/);await route.fulfill({response,body:source.replace(/completedJumps\s*=\s*0/,'completedJumps = 2')});});
  await page.route('**/src/main.tsx*',async route=>{
   const response=await route.fetch(),source=await response.text();
   expect(source).toContain('new FlightController()');
@@ -35,7 +37,7 @@ test('hazardous Jump waits for informed confirmation, cancels safely and arrives
  await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});
  const result=await page.evaluate(center=>{const c=window.testPilot,p=c.position.toArray(),d=center.map((n,i)=>n-p[i]),q=c.shipQuaternion;const f={x:0,y:0,z:-1};const ix=q.w*f.x+q.y*f.z-q.z*f.y,iy=q.w*f.y+q.z*f.x-q.x*f.z,iz=q.w*f.z+q.x*f.y-q.y*f.x,iw=-q.x*f.x-q.y*f.y-q.z*f.z;const out=[ix*q.w+iw*-q.x+iy*-q.z-iz*-q.y,iy*q.w+iw*-q.y+iz*-q.x-ix*-q.z,iz*q.w+iw*-q.z+ix*-q.y-iy*-q.x];return{distance:Math.hypot(...d),alignment:d.reduce((s,n,i)=>s+n*out[i],0)/Math.hypot(...d)};},course.center);
  expect(result.distance).toBeGreaterThan(5400);expect(result.alignment).toBeLessThan(-.95);await expect(page.locator('main')).toHaveAttribute('data-hazard','clear');
- const safe=await page.evaluate(async()=>{const T=await import('/node_modules/three/build/three.module.js'),{createUniverse}=await import('/src/graphics/universe.ts');const world=createUniverse(new T.Scene()),pilot=window.testPilot;for(let a=0;a<12;a++){const yaw=a*Math.PI/6,q=new T.Quaternion().setFromEuler(new T.Euler(0,yaw,0)),target=world.jumpTarget(pilot.position,q);if(!target.blackHole&&!world.singularityAt(target.position)){world.dispose();return{yaw,pitch:0};}}throw Error('No safe departure');});
+ const safe=await page.evaluate(async()=>{const T=await import('/node_modules/three/build/three.module.js'),{createUniverse}=await import('/src/graphics/universe.ts');const world=createUniverse(new T.Scene()),pilot=window.testPilot;world.recordJump('0/0/0');for(let a=0;a<12;a++){const yaw=a*Math.PI/6,q=new T.Quaternion().setFromEuler(new T.Euler(0,yaw,0)),target=world.jumpTarget(pilot.position,q);if(!target.blackHole&&!world.singularityAt(target.position)){world.dispose();return{yaw,pitch:0};}}throw Error('No safe departure');});
  await page.evaluate(s=>{window.testPilot.yaw=s.yaw;window.testPilot.pitch=s.pitch;},safe);await page.waitForTimeout(350);await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(dialog).toHaveCount(0);await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});await expect(page.locator('main')).toHaveAttribute('data-hazard','clear');expect(errors).toEqual([]);
 });
 
@@ -67,7 +69,7 @@ test('curved-ray black hole renders from front, rear and near orbit at every qua
 
 test('a new ordinary journey reaches the warning on Jump three and high cruise speed cannot skip discovery',async({page})=>{
  test.setTimeout(150000);await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
- for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toHaveCount(0);await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
+ for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();if(i===1)await page.getByRole('button',{name:'Enter nebula',exact:false}).click();await expect(page.getByRole('alertdialog')).toHaveCount(0);await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
  await page.locator('#speed').fill('1200');await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toBeVisible();await page.getByRole('button',{name:'I understand. Continue jump',exact:false}).click();await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});
  await expect(page.locator('#speed')).toHaveValue('18');await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');await expect(page.locator('main')).toHaveAttribute('data-region','4');await page.waitForTimeout(1500);await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');
 });
