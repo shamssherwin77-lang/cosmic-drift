@@ -45,3 +45,25 @@ test('Avaris stays on Jump two even after steering toward or passing its host, a
  for(const n of [2,7])expect(result.targets[n].hazard).toBe(true);
  expect(result.targets.filter(t=>t.landable)).toHaveLength(3);
 });
+
+test('outbound flight increases physical range, shrinks both landmarks, and returning restores their fixed centers',async({page})=>{
+ await page.route('**/departure-harness',r=>r.fulfill({contentType:'text/html',body:'<html></html>'}));await page.goto('/departure-harness');
+ const samples=await page.evaluate(async()=>{
+  const T=await import('/node_modules/three/build/three.module.js'),{createUniverse,describeSector}=await import('/src/graphics/universe.ts'),{FlightController}=await import('/src/controls.ts'),{createLandingPlanet}=await import('/src/graphics/landing-planet.ts'),{createBlackHole}=await import('/src/graphics/black-hole.ts'),P=await import('/src/planet.ts'),S=await import('/src/singularity.ts');
+  const scene=new T.Scene(),world=createUniverse(scene),terrain=createLandingPlanet(scene),hole=createBlackHole(scene),controller=new FlightController(),planetHost=describeSector(...P.LANDING_SECTOR),blackHost=describeSector(...S.SINGULARITY_SECTOR),planetCenter=planetHost.starWorld.clone().add(new T.Vector3(0,-500,7500)),results=[];
+  terrain.configure('Low');world.configure('Low');
+  for(const kind of ['planet','black-hole']){
+   const center=kind==='planet'?planetCenter:blackHost.starWorld,key=kind==='planet'?P.LANDING_KEY:S.SINGULARITY_KEY;world.recordJump(key);controller.position.copy(center).add(new T.Vector3(0,0,7000));controller.shipQuaternion.setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);controller.syncAttitude();controller.keys.add('KeyW');
+   const settings={mode:'Manual Flight',freeFlight:true,started:true,paused:false,blocked:false,speed:1200,reduced:false,motion:0,sensitivity:1,touchSensitivity:.7,invertMouseX:false,invertMouseY:false},steps=[];
+   for(let i=0;i<=2400;i++){
+    controller.step(1/60,settings);
+    if(i%600)continue;
+    const observer=controller.position,land=world.planetAt(observer),hazard=world.singularityAt(observer);terrain.update(land,observer,i/60);hole.update(hazard?.position??null,observer,i/60,0);
+    const mesh=kind==='planet'?terrain.group:hole.mesh;steps.push({distance:observer.distanceTo(center),visible:mesh.visible,worldError:mesh.position.clone().add(observer).distanceTo(center),angle:2*Math.atan((kind==='planet'?P.PLANET_RADIUS:S.HORIZON_RADIUS*6)/observer.distanceTo(center))});
+   }
+   controller.keys.clear();controller.position.copy(center).add(new T.Vector3(0,0,7000));terrain.update(world.planetAt(controller.position),controller.position,100);hole.update(world.singularityAt(controller.position)?.position??null,controller.position,100,0);results.push({kind,steps,returned:(kind==='planet'?terrain.group:hole.mesh).visible});
+  }
+  terrain.dispose();hole.dispose();world.dispose();return results;
+ });
+ for(const sample of samples){for(let i=1;i<sample.steps.length;i++){expect(sample.steps[i].distance).toBeGreaterThan(sample.steps[i-1].distance+10000);expect(sample.steps[i].angle).toBeLessThan(sample.steps[i-1].angle);}for(const step of sample.steps.filter(s=>s.visible))expect(step.worldError).toBeLessThan(.001);expect(sample.returned).toBe(true);}
+});

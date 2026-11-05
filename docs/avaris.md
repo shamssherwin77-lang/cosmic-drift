@@ -59,3 +59,21 @@ notice, all graphics tiers, GPU cleanup and the existing application regression 
 The built GitHub Pages artifact is also tested without source injection:
 `PLAYWRIGHT_PREVIEW=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:browser -- tests/browser/published.spec.mjs`
 after `npm run build -- --base=/cosmic-drift/`.
+
+## Departing a host system
+
+The visited host stays in the existing 27-system render pool until its landmark
+finishes fading. Avaris and its host bodies now share a star-centered 32,000–42,000 u
+fade; the black-hole host and accretion effect share 24,000–32,000 u. Their physical
+centers never move. The pool replaces a distant unvisited neighbour when necessary,
+so retaining the host does not add unbounded geometry or extra system slots.
+
+Outside the local surface/hazard zone, navigation follows the nearest real system.
+A still-visible landmark no longer forces the previous host's name and palette
+while the pilot is reaching another star. Departing and returning reproduce the
+same terrain and host coordinates. Scheduled special Jumps remain 2/7/12 for
+Avaris and 3/8/13 for the black hole.
+
+Browser regressions cover host-body/landmark opacity together across streaming
+boundaries, navigation at the next star, return travel, resource bounds, and GPU
+silhouette measurements at 6,000/12,000/24,000 u.

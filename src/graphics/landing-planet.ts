@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import { LANDING_NORMAL, PLANET_RADIUS, terrainHeight,groundNormal, type LandingWorld } from '../planet';
+import { LANDING_NORMAL, PLANET_RADIUS, PLANET_FADE_START, PLANET_FADE_END, terrainHeight,groundNormal, type LandingWorld } from '../planet';
 import type { Quality } from './config';
 const faces=[[[1,0,0],[0,0,-1],[0,1,0]],[[-1,0,0],[0,0,1],[0,1,0]],[[0,1,0],[1,0,0],[0,0,-1]],[[0,-1,0],[1,0,0],[0,0,1]],[[0,0,1],[1,0,0],[0,1,0]],[[0,0,-1],[-1,0,0],[0,1,0]]].map(f=>f.map(v=>new T.Vector3(...v)));
 type Tile={mesh:T.Mesh;last:number};
@@ -40,7 +40,7 @@ export function createLandingPlanet(scene:T.Scene){
   configure(value:Quality){if(value!==quality){quality=value;clear();}},
   update(world:LandingWorld|null,observer:T.Vector3,time:number,veil=0){
    group.visible=!!world;if(!world)return;center.copy(world.center).sub(observer);group.position.copy(center);observerLocal.copy(observer).sub(world.center);const altitude=observerLocal.length()-PLANET_RADIUS;
-   atmosphereDensity.value=1-T.MathUtils.smoothstep(altitude,150,1600);presence.value=(1-T.MathUtils.smoothstep(observerLocal.length(),32000,42000))*(1-veil);atmo.material.uniforms.center.value.copy(center);rocks.visible=altitude<700;
+   atmosphereDensity.value=1-T.MathUtils.smoothstep(altitude,150,1600);presence.value=(world.visibility??(1-T.MathUtils.smoothstep(observerLocal.length(),PLANET_FADE_START,PLANET_FADE_END)))*(1-veil);atmo.material.uniforms.center.value.copy(center);rocks.visible=altitude<700;
    if(time-lastRebuild>.2&&(observerLocal.distanceTo(lastObserver)>5||tiles.size===0)){
     serial++;wanted.clear();for(let f=0;f<6;f++)visit(f,0,0,0);const geometry=mergeGeometries([...wanted].map(key=>tiles.get(key)!.mesh.geometry))!;batch.geometry.dispose();batch.geometry=geometry;for(const [key,tile] of tiles)if(!wanted.has(key))tile.mesh.visible=false;
     const unused=[...tiles].filter(([key])=>!wanted.has(key)).sort((a,b)=>a[1].last-b[1].last);while(tiles.size>320&&unused.length){const [key,tile]=unused.shift()!;tile.mesh.removeFromParent();tile.mesh.geometry.dispose();tiles.delete(key);}lastObserver.copy(observerLocal);lastRebuild=time;
