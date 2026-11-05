@@ -1,6 +1,6 @@
 import * as T from 'three';
 
-/** Shared PBR finish: surface-scale seams, brushed microstructure and restrained edge wear. */
+/** Filtered machining detail: flat access panels, satin brushing and sparse edge wear. */
 export function aerospaceFinish(material: T.MeshStandardMaterial, panelScale = 1) {
   material.onBeforeCompile = shader => {
     shader.uniforms.panelScale = { value: panelScale };
@@ -10,16 +10,21 @@ export function aerospaceFinish(material: T.MeshStandardMaterial, panelScale = 1
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       vec3 dominant=abs(normalize(shipNormal));
       vec2 panelUV=dominant.y>dominant.x&&dominant.y>dominant.z?shipPoint.xz:dominant.x>dominant.z?shipPoint.zy:shipPoint.xy;
-      panelUV*=panelScale;vec2 cell=abs(fract(panelUV)-.5);
-      float seam=smoothstep(.478,.497,max(cell.x,cell.y));
-      float grain=fract(sin(dot(floor(panelUV*470.),vec2(127.1,311.7)))*43758.5453);
-      float brush=.5+.5*sin(panelUV.x*1900.+sin(panelUV.y*29.)*.2);
-      float edge=smoothstep(.447,.471,max(cell.x,cell.y))*(1.-smoothstep(.474,.49,max(cell.x,cell.y)));
-      diffuseColor.rgb*=.91+grain*.075+brush*.025;diffuseColor.rgb*=1.-seam*.62;
-      diffuseColor.rgb+=vec3(.025,.033,.036)*edge*(.35+grain*.65);
+      panelUV*=panelScale;vec2 plateUV=panelUV*vec2(.48,1.1);
+      vec2 border=.5-abs(fract(plateUV)-.5),aa=max(fwidth(plateUV),vec2(.0004));
+      float planar=smoothstep(.91,.995,max(dominant.x,max(dominant.y,dominant.z)));
+      float seam=(1.-smoothstep(.002,.002+max(aa.x,aa.y),min(border.x,border.y)))*planar;
+      float edge=(1.-smoothstep(.003,.014,min(border.x,border.y)))*planar*(1.-seam);
+      float grain=fract(sin(dot(floor(panelUV*220.),vec2(127.1,311.7)))*43758.5453);
+      float brushAA=1.-smoothstep(.25,1.2,fwidth(panelUV.x)*650.);
+      float brush=sin(panelUV.x*4084.+sin(panelUV.y*21.)*.12)*brushAA;
+      vec2 wearCell=floor(panelUV*vec2(12.,3.));float wear=fract(sin(dot(wearCell,vec2(41.7,289.1)))*43758.5453);
+      float scratch=step(.988,wear)*(1.-smoothstep(.001,.006,abs(fract(panelUV.y*3.)-.47)));
+      diffuseColor.rgb*=.975+(grain-.5)*.025+brush*.012-seam*.43;
+      diffuseColor.rgb+=vec3(.026,.027,.024)*edge+vec3(.035)*scratch;
     `);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(grain-.5)*.085+seam*.24-edge*.12,.15,.95);');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(grain-.5)*.035+brush*.012+seam*.14-edge*.055,.14,.96);');
   };
-  material.customProgramCacheKey = () => 'aether-aerospace-pbr-v1';
+  material.customProgramCacheKey = () => 'aether-machined-satin-v2';
   return material;
 }
