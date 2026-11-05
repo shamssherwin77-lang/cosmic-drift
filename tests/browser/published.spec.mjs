@@ -4,6 +4,7 @@ test('an unmodified desktop journey reaches Avaris on the second Jump',async({pa
  test.setTimeout(150000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('./');
+ await expect(page.getByRole('button',{name:'Start journey',exact:true})).toBeVisible({timeout:15000});
  await page.getByRole('button',{name:'Start journey',exact:true}).click();
  await page.getByRole('button',{name:'Light Jump',exact:true}).click();
  await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:60000});
