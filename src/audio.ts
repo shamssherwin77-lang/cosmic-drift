@@ -29,6 +29,14 @@ export class SpaceAudio {
     this.musicState = { state, track, message }; this.onMusicState?.(this.musicState);
   }
 
+  private combatVoices=0;
+  combat(kind:string,weapon=0){
+    const c=this.ctx;if(!c||!this.engine||!this.enabled||this.paused||document.hidden||!this.settings.engineEnabled||this.combatVoices>=10||kind==='wave')return;
+    const tone=c.createOscillator(),gain=c.createGain(),duration=kind==='kill'?.5:kind==='damage'?.25:.12;
+    tone.type=kind==='shot'?'sawtooth':'triangle';const frequency=kind==='shot'?[680,330,120,210][weapon]:kind==='kill'?100:kind==='damage'?75:420;
+    tone.frequency.setValueAtTime(frequency,c.currentTime);tone.frequency.exponentialRampToValueAtTime(Math.max(25,frequency*.22),c.currentTime+duration);
+    gain.gain.setValueAtTime(kind==='shot'?.035:.07,c.currentTime);gain.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);tone.connect(gain).connect(this.engine);this.combatVoices++;tone.onended=()=>{this.combatVoices--;tone.disconnect();gain.disconnect();};tone.start();tone.stop(c.currentTime+duration);
+  }
   async start(track?: MusicTrack) {
     if (track) this.settings = { ...this.settings, track, musicEnabled: true };
     if (!this.ctx) {
@@ -174,7 +182,7 @@ export class SpaceAudio {
     slot.element.pause(); slot.element.removeAttribute('src'); slot.element.load();
     if (this.ctx && this.ctx.state !== 'closed') { slot.gain.gain.cancelScheduledValues(this.ctx.currentTime); slot.gain.gain.value = 0; }
   }
-  relic(intensity:number){this.relicIntensity=Math.max(0,Math.min(1,intensity));if(this.ctx&&this.relicGain){this.relicGain.gain.cancelScheduledValues(this.ctx.currentTime);this.relicGain.gain.setTargetAtTime(this.relicIntensity*.55,this.ctx.currentTime,1.2);}}
+  relic(intensity:number){this.relicIntensity=Math.max(0,Math.min(1,intensity));if(this.ctx&&this.relicGain){this.relicGain.gain.cancelScheduledValues(this.ctx.currentTime);this.relicGain.gain.setTargetAtTime(this.relicIntensity*.24,this.ctx.currentTime,1.2);}}
   surface(density:number,landed:boolean){this.surfaceState={density:Math.max(0,Math.min(1,density)),landed};this.apply();}
   hazard(briefing:boolean,level:HazardLevel,intensity:number,assist=false){
     const changed=briefing!==this.anomaly.briefing||level!==this.anomaly.level;

@@ -9,7 +9,7 @@ test('all quality tiers render outside/inside clouds and release GPU resources',
   const result=await page.evaluate(async()=>{
     const T=await import('/node_modules/three/build/three.module.js');
     const {createSpace}=await import('/src/graphics/space.ts');
-    const renderer=new T.WebGLRenderer();renderer.setSize(360,240);renderer.toneMapping=T.ACESFilmicToneMapping;
+    const renderer=new T.WebGLRenderer({logarithmicDepthBuffer:true});renderer.setSize(360,240);renderer.toneMapping=T.ACESFilmicToneMapping;
     document.body.appendChild(renderer.domElement);
     const scene=new T.Scene(),camera=new T.PerspectiveCamera(68,1.5,.1,16000);camera.position.z=5;
     const space=createSpace(scene),position=new T.Vector3();
@@ -148,7 +148,7 @@ test('cached nebula reprojects immediately during free-look and stays close to a
     // Freeze the refresh clock, so this checks a real history hit rather than a timed refresh.
     Object.defineProperty(performance,'now',{value:()=>1000});
     const T=await import('/node_modules/three/build/three.module.js'),{createSpace}=await import('/src/graphics/space.ts');
-    const renderer=new T.WebGLRenderer();renderer.setSize(320,200);renderer.toneMapping=T.ACESFilmicToneMapping;
+    const renderer=new T.WebGLRenderer({logarithmicDepthBuffer:true});renderer.setSize(320,200);renderer.toneMapping=T.ACESFilmicToneMapping;
     const scene=new T.Scene(),camera=new T.PerspectiveCamera(68,1.6,.1,16000),space=createSpace(scene);camera.position.z=5;
     space.configure('Low',1,320,200,.28,true);space.update(.1,0,0,new T.Vector3(),.9);
     for(const object of scene.children)if(!object.material?.uniforms?.sky)object.visible=false;

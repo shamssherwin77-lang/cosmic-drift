@@ -1,8 +1,8 @@
 import {test,expect} from '@playwright/test';
 
 test('an unmodified desktop journey reaches Avaris on the second Jump',async({page})=>{
- test.setTimeout(150000);
- const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ test.setTimeout(150000);await page.setViewportSize({width:640,height:360});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto('./');
  await expect(page.getByRole('button',{name:'Start journey',exact:true})).toBeVisible({timeout:15000});
  await page.getByRole('button',{name:'Start journey',exact:true}).click();

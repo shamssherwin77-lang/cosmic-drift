@@ -1,3 +1,4 @@
+import {WorldShaderMaterial} from './world-material';
 import * as T from 'three';
 import type { Quality } from './config';
 
@@ -9,7 +10,7 @@ export function createJumpEffect(ship:T.Group){
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));geometry.setAttribute('lane',new T.BufferAttribute(lanes,3));geometry.setAttribute('endpoint',new T.BufferAttribute(ends,1));
   const uniforms={time:{value:0},energy:{value:0},tint:{value:new T.Color('#b7d8ef')}};
   const white=new T.Color('#d4ecfa');
-  const material=new T.ShaderMaterial({uniforms,transparent:true,depthWrite:false,blending:T.AdditiveBlending,
+  const material=new WorldShaderMaterial({uniforms,transparent:true,depthWrite:false,blending:T.AdditiveBlending,
     vertexShader:`attribute vec3 lane;attribute float endpoint;uniform float time,energy;varying float fade;
       void main(){float z=-12.-fract(lane.z+time)*800.;float trailLength=energy*(22.+energy*155.);
       vec3 p=vec3(lane.xy,z-endpoint*trailLength);fade=smoothstep(15.,65.,-z)*(1.-smoothstep(650.,810.,-z))*(.35+endpoint*.4);

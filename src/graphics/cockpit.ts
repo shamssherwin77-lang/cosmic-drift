@@ -1,3 +1,4 @@
+import {WorldShaderMaterial} from './world-material';
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -144,7 +145,7 @@ export function createCockpit(ship: T.Group) {
   box(dark, 0, -1.1, .82, .91, .78, .14, -.13);
   // Glazing is a single lightweight batch. It transmits the actual world in every pane.
   const glassUniforms={reflection:{value:null as T.Texture|null},hasReflection:{value:0},strength:{value:.06},tint:tintUniform};
-  const glass=new T.ShaderMaterial({uniforms:glassUniforms,transparent:true,depthWrite:false,side:T.DoubleSide,
+  const glass=new WorldShaderMaterial({uniforms:glassUniforms,transparent:true,depthWrite:false,side:T.DoubleSide,
     vertexShader:'varying vec3 panePoint,paneNormal;void main(){panePoint=position;paneNormal=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader:`varying vec3 panePoint,paneNormal;uniform sampler2D reflection;uniform float hasReflection,strength;uniform vec3 tint;
     void main(){vec3 v=normalize(-panePoint),n=normalize(paneNormal);float facing=abs(dot(n,v));vec3 r=reflect(-v,n);

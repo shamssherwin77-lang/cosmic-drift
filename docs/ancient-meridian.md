@@ -1,51 +1,50 @@
-# The Last Meridian
+# The Last Meridian — fractured alien hull
 
-A single abandoned extraterrestrial carrier inhabits the Cosmic Clouds nebula.
-Its broken concentric ring spans more than 12,000 compressed game units, versus
-Avaris's 5,200-unit diameter. Coordinates and wear are deterministic. This is an
-exploration landmark, without enemies, a countdown, damage or a forced mission.
+The ancient encounter is a fixed extraterrestrial ruin in Cosmic Clouds. Its new
+body is a warped, layered shell roughly forty thousand compressed game units long.
+It is not a ring station, a city of box towers, or a collection of lit hangar blocks.
+No comparison planet is added to imply scale: its dimensions, cavities, detached
+plates and travel distances are part of the physical world.
 
-## Finding it
+## Arrival and exploration
 
-Jump 4, then 9, 14, etc. selects the fixed host sector 5/1/-3. A pre-Jump advisory
-announces traces of an ancient civilization and a still-powered derelict. Cancel
-leaves the route and world seed unchanged. Enter nebula starts the cinematic.
-Arrival is 34,000 units from the carrier's center, with it 55 degrees off the bow,
-outside the initial direct forward view. The quiet entry point is selected once
-from deterministic candidates, avoiding the immediate vicinity of another star.
+Jump 4, then 9, 14, etc. selects sector 5/1/-3. An archaeological advisory appears
+before the drive starts. Cancel leaves the route and seed unchanged. Arrival is
+60,000 units from the center, 55 degrees off the bow. Looking toward the ruin within
+44,000 units identifies the hull. Existing planet and black-hole encounters retain
+their scheduled Jumps and their original interaction flows.
 
-Turn and explore. Lights and the silhouette become visible through a local dust
-veil. Looking toward the structure within 30,000 units identifies it and reveals
-a small contextual signal-range card. The player keeps manual steering, joystick,
-Descent and the existing speed slider. The open ring and the spaces between the
-buttresses are actual flight paths; swept tests stop the vessel at main solid
-masses. There is no interior landing or docking system in this encounter.
+Broad ruptures lead into spaces between inner and outer skins. Three local traces
+can be discovered by approaching and looking: a sealed resonance chamber, a lattice
+of suspended sheets, and a blind passage. They are exploration details, without a
+countdown, score, enemies or mandatory objectives. A small contextual card records
+what the pilot actually finds. Manual flight, joystick and Descent controls remain
+available. There is no landing or docking system on this ruin.
 
-A slow low-frequency resonance grows on approach. It belongs to the existing space
-mixer, respects master mute/pause and never replaces the licensed music. Leaving
-or jumping elsewhere clears the contact and resonance. Returning restores the same
-structure at the same world coordinates.
+## Form and surface
 
-## Rendering and limits
+Parametric, displaced surfaces define the rendered skin and contact envelopes.
+Torn ranges are deterministic. Three massive detached sections use matching source
+surfaces, displaced and rotated away from the missing crown, prow and inner skin.
+Smaller debris consists of thin curled alloy lamellae, not asteroid rocks. All
+parts retain fixed world coordinates on return.
 
-The mesh combines tapered layered keels, interrupted rings, buttresses, exposed
-fracture teeth, tower clusters, recessed bays, incomplete glyphs and debris. A
-weathered PBR material uses deterministic multiscale noise and patina. Low/Medium/
-High expose 650/1,400/2,400 surface fixtures and 55/100/150 debris instances. The
-main silhouette stays identical across quality tiers. Eight structure batches plus
-one local mist pass bound draw calls. A physically sized beacon pass shrinks with
-distance, rather than keeping fixed-size screen markers.
+Low/Medium use a reduced surface tessellation; High uses finer sculpted surfaces.
+The main shape and large detached parts stay identical across tiers. Surface
+fixtures use 440/950/1,700 instances and thin debris uses 45/90/140. Multi-scale
+relief, layered edges, roughness variation, micro-normal etching and restrained
+thin-film iridescence give the unidentified alloy its surface. There are no human
+panel grids, regular window rows or block-shaped illuminated signs.
 
-Dust is integrated in a local world-space volume. Its depth test protects nearby
-cockpit surfaces, including when the vessel enters the cloud. Main structure and
-host celestial bodies share a 38,000–46,000 unit fade; retaining this host does not
-increase the existing 27-system pool. Procedural bodies within the wreck's reserved
-clearance are suppressed during the encounter. A safe ordinary Jump lands outside
-its immediate physical domain.
+The enclosing fog volume has been removed. Existing background nebula clouds stay
+behind the hull. Three tiny intermittent residual filaments are the only luminous
+geometry; they are deliberately hard to notice. The ambient resonance is quieter,
+uses the existing space mixer and does not interrupt the licensed music.
 
-Contact envelopes approximate the large masses. Decorative fixtures and debris
-are not separately collidable. No imported model, paid asset or network graphics
-service is used. Existing planet and black-hole discoveries remain on Jumps 2/7/12
-and 3/8/13. Tests cover the route, advisory cancellation, discovery by approach and
-view, GPU quality switching and disposal, audio mixing, fixed returns and swept
-contact. Preview artifacts show distant, approach, hull and aperture perspectives.
+The rendering camera's far plane extends to 120,000 units to accommodate the actual
+large geometry. The world-space fade is 55,000–75,000 units; the existing bounded
+27-system pool retains the host through the same envelope. Geometry, LOD variants,
+instance buffers and materials are explicitly disposed. Decorative lamellae are
+not individually collidable; the large skins and detached sections are swept for
+contact. Tests cover fixed returns, safe arrival, quality switching, GPU cleanup,
+open cavities, hull contact, archaeological discovery and audio mixing.

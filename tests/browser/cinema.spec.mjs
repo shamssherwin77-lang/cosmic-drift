@@ -5,7 +5,7 @@ test('cinematic materials compile at every tier, shadows switch off on Low and G
   await page.route('**/cinema-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('/cinema-harness');
   const result=await page.evaluate(async()=>{
     const T=await import('/node_modules/three/build/three.module.js'),{createCinema}=await import('/src/graphics/cinema.ts'),{createCockpit}=await import('/src/graphics/cockpit.ts'),{createHull}=await import('/src/graphics/hull.ts'),{createSpace}=await import('/src/graphics/space.ts');
-    const renderer=new T.WebGLRenderer();renderer.setSize(320,220);renderer.toneMapping=T.ACESFilmicToneMapping;
+    const renderer=new T.WebGLRenderer({logarithmicDepthBuffer:true});renderer.setSize(320,220);renderer.toneMapping=T.ACESFilmicToneMapping;
     const scene=new T.Scene(),ship=new T.Group(),camera=new T.PerspectiveCamera(68,320/220,.1,50000);ship.position.z=5;ship.add(camera);scene.add(ship);
     const cinema=createCinema(renderer,scene,ship),space=createSpace(scene),cabin=createCockpit(ship),hull=createHull(ship),samples=[];
     for(const quality of ['Low','Medium','High','Low','High']){

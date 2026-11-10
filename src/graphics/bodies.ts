@@ -1,3 +1,4 @@
+import {WorldShaderMaterial} from './world-material';
 import * as T from 'three';
 import { systemLayout } from './system-layout';
 
@@ -37,7 +38,7 @@ export function createBodies(scene: T.Scene) {
   const group = new T.Group(); group.name = 'regional-celestial-bodies'; scene.add(group);
   const high = new T.SphereGeometry(1, 32, 20), low = new T.SphereGeometry(1, 16, 10), far = new T.SphereGeometry(1, 8, 6);
   const makeBody = (kind: number) => {
-    const material = new T.ShaderMaterial({ uniforms: {
+    const material = new WorldShaderMaterial({ uniforms: {
       baseColor: { value: new T.Color('#718fa6') }, detailColor: { value: new T.Color('#c7c6b0') }, kind: { value: kind },
       alpha: { value: 1 }, seed: { value: 1 }, time: { value: 0 }, lightDirection: { value: new T.Vector3(-.65, .4, .75) },
     }, vertexShader: vertex, fragmentShader: fragment, transparent: true, depthWrite: true });
@@ -46,12 +47,12 @@ export function createBodies(scene: T.Scene) {
   const planets = Array.from({ length: 12 }, () => makeBody(0));
   const moons = Array.from({ length: 8 }, (_, i) => { const mesh = makeBody(2); mesh.userData.kind = 'moon'; return { mesh, parent: i }; });
   const star = makeBody(3); star.name = 'primary-star';
-  const glow = new T.Mesh(new T.PlaneGeometry(1, 1), new T.ShaderMaterial({
+  const glow = new T.Mesh(new T.PlaneGeometry(1, 1), new WorldShaderMaterial({
     uniforms: { baseColor: { value: new T.Color() }, alpha: { value: 1 } }, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
     vertexShader: `varying vec2 vUv;void main(){vUv=uv;vec4 center=modelViewMatrix*vec4(0.,0.,0.,1.);vec2 size=vec2(length(modelMatrix[0].xyz),length(modelMatrix[1].xyz));center.xy+=position.xy*size;gl_Position=projectionMatrix*center;}`,
     fragmentShader: `varying vec2 vUv;uniform vec3 baseColor;uniform float alpha;void main(){float r=length(vUv-.5)*2.;float a=exp(-r*r*7.)*(1.-smoothstep(.7,1.,r));gl_FragColor=vec4(baseColor*1.3,a*alpha*.45);}`,
   })); glow.name = 'stellar-corona'; glow.frustumCulled = false; glow.renderOrder = 3.5; group.add(glow);
-  const ring = new T.Mesh(new T.RingGeometry(1.32, 2.2, 64), new T.ShaderMaterial({
+  const ring = new T.Mesh(new T.RingGeometry(1.32, 2.2, 64), new WorldShaderMaterial({
     uniforms: { color: { value: new T.Color('#b8afa0') }, alpha: { value: 1 } }, transparent: true, depthWrite: false, side: T.DoubleSide,
     vertexShader: 'varying vec2 p;void main(){p=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: `varying vec2 p;uniform vec3 color;uniform float alpha;void main(){float r=length(p);float edge=smoothstep(1.32,1.42,r)*(1.-smoothstep(2.05,2.2,r));float bands=.35+.25*sin(r*180.)+.2*sin(r*47.);gl_FragColor=vec4(color*.7,edge*max(.1,bands)*alpha);}`,

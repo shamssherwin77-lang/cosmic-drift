@@ -1,3 +1,4 @@
+import {WorldShaderMaterial} from './world-material';
 import * as T from 'three';
 import { createUniverse } from './universe';
 import { qualityProfiles, regions, type Quality } from './config';
@@ -10,7 +11,7 @@ export function createSpace(scene: T.Scene) {
   const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, depthBuffer: false });
   const reprojection = new T.Matrix3();
   const backdropUniforms = { sky: { value: target.texture }, reprojection: { value: reprojection }, tanHalf: { value: .6745 }, wideTanHalf: { value: .7554 }, aspect: { value: 1 }, veil: { value: 0 }, jumpTint: { value: new T.Color('#92bce0') } };
-  const backdrop = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({
+  const backdrop = new T.Mesh(new T.PlaneGeometry(2, 2), new WorldShaderMaterial({
     uniforms: backdropUniforms, depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 uvv;void main(){uvv=uv;gl_Position=vec4(position.xy,1.,1.);}',
     fragmentShader: `varying vec2 uvv;uniform sampler2D sky;uniform mat3 reprojection;uniform float tanHalf,wideTanHalf,aspect,veil;uniform vec3 jumpTint;
@@ -68,7 +69,7 @@ export function createSpace(scene: T.Scene) {
     geometry.setAttribute('radius', new T.BufferAttribute(radius, 1));
     geometry.setAttribute('temperature', new T.BufferAttribute(temperature, 1));
     geometry.setAttribute('identity', new T.BufferAttribute(identity, 1));
-    const material = new T.ShaderMaterial({
+    const material = new WorldShaderMaterial({
       uniforms: { ...shared, offset: { value: new T.Vector3() }, span: { value: span }, layoutOffset:{value:new T.Vector3()}, pixels: { value: 400 }, dpr: { value: 1 } },
       vertexShader: starVertex, fragmentShader: starFragment,
       transparent: true, depthWrite: false, blending: T.AdditiveBlending,
@@ -80,7 +81,7 @@ export function createSpace(scene: T.Scene) {
     scene.add(points);
     return points;
   });
-  const sky = new T.Mesh(new T.SphereGeometry(12500, 32, 16), new T.ShaderMaterial({
+  const sky = new T.Mesh(new T.SphereGeometry(12500, 32, 16), new WorldShaderMaterial({
     uniforms: shared, vertexShader: skyVertex, fragmentShader: skyFragment,
     side: T.BackSide, depthWrite: false,
   }));
@@ -95,7 +96,7 @@ export function createSpace(scene: T.Scene) {
   ];
   const jitter=layouts.map(()=>new T.Vector3());
   const volumes = layouts.map((layout, i) => {
-    const material = new T.ShaderMaterial({
+    const material = new WorldShaderMaterial({
       uniforms: { ...shared, center: { value: layout.center.clone() }, radii: { value: layout.radii },
         steps: { value: 10 }, visibility: { value: 1 }, seed: { value: 4.3 + i * 9.7 } },
       vertexShader: volumeVertex, fragmentShader: volumeFragment,

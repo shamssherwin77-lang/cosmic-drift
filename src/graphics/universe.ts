@@ -1,3 +1,4 @@
+import {WorldShaderMaterial} from './world-material';
 import * as T from 'three';
 import {RELIC_SECTOR,RELIC_KEY,RELIC_NAME,RELIC_REGION,RELIC_RADIUS,RELIC_FADE_START,RELIC_FADE_END,type RelicWorld} from '../relic';
 import { createBodies } from './bodies';
@@ -34,7 +35,7 @@ export function createUniverse(scene: T.Scene) {
   markerGeometry.setAttribute('position', new T.BufferAttribute(positions, 3)); markerGeometry.setAttribute('color', new T.BufferAttribute(colors, 3)); markerGeometry.setAttribute('size', new T.BufferAttribute(sizes, 1)); markerGeometry.setDrawRange(0, markerCount);
   const relicRelative=new T.Vector3();
   const markerOrigin = new T.Vector3(), offset = new T.Vector3(), direction = new T.Vector3(), forward = new T.Vector3();
-  const markerMaterial = new T.ShaderMaterial({
+  const markerMaterial = new WorldShaderMaterial({
     uniforms: { offset: { value: offset }, jump: { value: 1 } }, vertexColors: true, transparent: true, depthWrite: false, blending: T.AdditiveBlending,
     vertexShader: `attribute float size;uniform vec3 offset;uniform float jump;varying vec3 vColor;varying float visibility;void main(){vec3 p=position-offset;float d=length(p);visibility=smoothstep(10000.,14000.,d)*(1.-smoothstep(32000.,40000.,d))*jump;vColor=color;vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(size*85000./max(100.,d),1.8,12.);}`,
     fragmentShader: `varying vec3 vColor;varying float visibility;void main(){float d=length(gl_PointCoord-.5)*2.;gl_FragColor=vec4(vColor*1.6,exp(-d*d*5.)*visibility);}`,
@@ -57,7 +58,7 @@ export function createUniverse(scene: T.Scene) {
     if(clearance>bestEntry){bestEntry=clearance;explorationNormal.copy(n);}
   }
   const relicEntry=new T.Vector3();let relicEntryClearance=-Infinity;
-  for(let i=0;i<32;i++){const y=1-2*(i+.5)/32,a=i*2.399963229728653,n=new T.Vector3(Math.cos(a)*Math.sqrt(1-y*y),y,Math.sin(a)*Math.sqrt(1-y*y));const p=relicWorld.center.clone().addScaledVector(n,34000),[x,yc,z]=sectorAt(p);let clearance=Infinity;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){const sector=describeSector(x+dx,yc+dy,z+dz);clearance=Math.min(clearance,p.distanceTo(sector.starWorld));}if(clearance>relicEntryClearance){relicEntryClearance=clearance;relicEntry.copy(p);}}
+  for(let i=0;i<32;i++){const y=1-2*(i+.5)/32,a=i*2.399963229728653,n=new T.Vector3(Math.cos(a)*Math.sqrt(1-y*y),y,Math.sin(a)*Math.sqrt(1-y*y));const p=relicWorld.center.clone().addScaledVector(n,60000),[x,yc,z]=sectorAt(p);let clearance=Infinity;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){const sector=describeSector(x+dx,yc+dy,z+dz);clearance=Math.min(clearance,p.distanceTo(sector.starWorld));}if(clearance>relicEntryClearance){relicEntryClearance=clearance;relicEntry.copy(p);}}
   const assign = (position: T.Vector3) => {
     const [x, y, z] = sectorAt(position);
     const retained=[...(relicVisit&&position.distanceTo(relicWorld.center)<RELIC_FADE_END?[relicHost]:[]),...(planetVisit&&position.distanceTo(planetHost.starWorld)<PLANET_FADE_END?[planetHost]:[]),...(hostVisit&&position.distanceTo(singularityHost.starWorld)<SINGULARITY_FADE_END?[singularityHost]:[])];
