@@ -1,13 +1,14 @@
+import {weaponBuffers} from './combat/weapon-sound';
 import type { HazardLevel } from './singularity';
-import { DEFAULT_AUDIO, MUSIC_TRACKS, type AudioPreferences, type MusicTrack } from './audio-preferences';
+import { DEFAULT_AUDIO, MUSIC_TRACKS, ALL_MUSIC_TRACKS,shuffledBattleMusic,type RecordingId, type AudioPreferences, type MusicTrack } from './audio-preferences';
 
-type Track = typeof MUSIC_TRACKS[number];
+type Track = typeof ALL_MUSIC_TRACKS[number];
 type RecordingSlot = { element: HTMLAudioElement; source: MediaElementAudioSourceNode; gain: GainNode; track: Track | null; request: number; pending: boolean };
-export type MusicPlayback = { state: 'idle' | 'loading' | 'playing' | 'paused' | 'error'; track: MusicTrack | null; message?: string };
+export type MusicPlayback = { state: 'idle' | 'loading' | 'playing' | 'paused' | 'error'; track: RecordingId | null; message?: string };
 /** Two streaming players crossfade licensed recordings; engine and atmosphere remain independent. */
 export class SpaceAudio {
   ctx: AudioContext | null = null;
-  master?: GainNode; engine?: GainNode; space?: GainNode; music?: GainNode;
+  master?: GainNode; engine?: GainNode; space?: GainNode; music?: GainNode;weapons?:GainNode;musicDuck?:GainNode;
   onMusicState?: (state: MusicPlayback) => void;
   musicState: MusicPlayback = { state: 'idle', track: null };
   private jumpGain?: GainNode; private jumpTone?: OscillatorNode; private jumpFilter?: BiquadFilterNode;
@@ -17,33 +18,38 @@ export class SpaceAudio {
   private relicGain?:GainNode;private relicIntensity=0;
   private lastDrive = -1; private lastCharge = -1;
   private settings = { ...DEFAULT_AUDIO };
+  private campaignState:{active:boolean;phase:string;wave:number;session:number;order:RecordingId[]}|null=null;
+  private effects:AudioBuffer[]=[];private combatVoices=0;
+  private get campaignAllowsMusic(){return !this.campaignState?.active||this.campaignState.phase==='battle'||this.campaignState.phase==='victory';}
+  campaign(active:boolean,phase:string,wave:number,session:number){const old=this.campaignState;this.campaignState={active,phase,wave,session,order:old?.active&&active&&old.session===session?old.order:shuffledBattleMusic()};this.apply();}
   private enabled = false; private paused = false;
   private slots: RecordingSlot[] = []; private current?: RecordingSlot; private retiring?: RecordingSlot;
   private fadeTimer?: ReturnType<typeof setTimeout>; private pauseTimer?: ReturnType<typeof setTimeout>;
   private visibility = () => this.apply();
   get currentRecording() { return this.current?.element ?? null; }
-  private get musicActive() { return this.enabled && !this.paused && !document.hidden && !this.anomaly.briefing && this.anomaly.level!=='critical' && !(this.anomaly.assist&&this.anomaly.level!=='clear') && this.settings.musicEnabled && this.settings.music > 0; }
+  private get musicActive() { return this.campaignAllowsMusic && this.enabled && !this.paused && !document.hidden && !this.anomaly.briefing && this.anomaly.level!=='critical' && !(this.anomaly.assist&&this.anomaly.level!=='clear') && this.settings.musicEnabled && this.settings.music > 0; }
   private report(state: MusicPlayback['state'], message?: string) {
     const track = this.current?.track?.id ?? null;
     if (this.musicState.state === state && this.musicState.track === track && this.musicState.message === message) return;
     this.musicState = { state, track, message }; this.onMusicState?.(this.musicState);
   }
 
-  private combatVoices=0;
   combat(kind:string,weapon=0){
-    const c=this.ctx;if(!c||!this.engine||!this.enabled||this.paused||document.hidden||!this.settings.engineEnabled||this.combatVoices>=10||kind==='wave')return;
-    const tone=c.createOscillator(),gain=c.createGain(),duration=kind==='kill'?.5:kind==='damage'?.25:.12;
-    tone.type=kind==='shot'?'sawtooth':'triangle';const frequency=kind==='shot'?[680,330,120,210][weapon]:kind==='kill'?100:kind==='damage'?75:420;
-    tone.frequency.setValueAtTime(frequency,c.currentTime);tone.frequency.exponentialRampToValueAtTime(Math.max(25,frequency*.22),c.currentTime+duration);
-    gain.gain.setValueAtTime(kind==='shot'?.035:.07,c.currentTime);gain.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);tone.connect(gain).connect(this.engine);this.combatVoices++;tone.onended=()=>{this.combatVoices--;tone.disconnect();gain.disconnect();};tone.start();tone.stop(c.currentTime+duration);
+    const c=this.ctx;if(!c||!this.weapons||!this.enabled||this.paused||document.hidden||!this.settings.weaponsEnabled||this.settings.weapons<=0||this.combatVoices>=16||kind==='wave')return;
+    const index=kind==='shot'?weapon:kind==='kill'?4:kind==='damage'?5:kind==='blink'?6:kind==='reload'?7:0;
+    if(kind==='hit')return;
+    const source=c.createBufferSource(),gain=c.createGain();source.buffer=this.effects[index];gain.gain.value=kind==='shot'?[.34,.46,.29,.48][weapon]:kind==='kill'?.6:.3;source.connect(gain).connect(this.weapons);this.combatVoices++;source.onended=()=>{this.combatVoices--;source.disconnect();gain.disconnect();};source.start();
+    if(kind==='shot'&&this.musicDuck){const now=c.currentTime,g=this.musicDuck.gain;g.cancelScheduledValues(now);g.setTargetAtTime(.42,now,.012);g.setTargetAtTime(1,now+.1,.2);}
   }
   async start(track?: MusicTrack) {
     if (track) this.settings = { ...this.settings, track, musicEnabled: true };
     if (!this.ctx) {
       const c = this.ctx = new AudioContext();
       this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(c.destination);
-      this.engine = c.createGain(); this.space = c.createGain(); this.music = c.createGain();
+      this.engine = c.createGain(); this.space = c.createGain(); this.music = c.createGain();this.weapons=c.createGain();this.effects=weaponBuffers(c);
       for (const channel of [this.engine, this.space, this.music]) { channel.gain.value = 0; channel.connect(this.master); }
+      this.music.disconnect();this.musicDuck=c.createGain();this.musicDuck.gain.value=1;this.music.connect(this.musicDuck).connect(this.master);
+      const limiter=c.createDynamicsCompressor();limiter.threshold.value=-12;limiter.ratio.value=4;this.weapons.connect(limiter).connect(this.master);
       for (const f of [38, 57, 76]) {
         const oscillator = c.createOscillator(), gain = c.createGain();
         oscillator.type = 'sine'; oscillator.frequency.value = f; gain.gain.value = .09;
@@ -124,12 +130,14 @@ export class SpaceAudio {
     for (const [channel, volume, enabled] of [
       [this.engine!, this.settings.engine, this.settings.engineEnabled],
       [this.space!, this.settings.space, this.settings.spaceEnabled],
-      [this.music!, this.settings.music, this.settings.musicEnabled],
+      [this.music!, this.settings.music, this.settings.musicEnabled&&this.campaignAllowsMusic],
+      [this.weapons!,this.settings.weapons,this.settings.weaponsEnabled],
     ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(channel===this.engine&&this.surfaceState.landed?.25:1)*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
     this.airFilter?.frequency.setTargetAtTime(650+this.surfaceState.density*900,now,.7);this.driveTones.forEach((tone,i)=>tone.frequency.setTargetAtTime([38,57,76][i]*(1+this.surfaceState.density*.025),now,.7));
     this.anomalyGain?.gain.setTargetAtTime(active&&!this.anomaly.briefing&&this.anomaly.level!=='clear'?.12+this.anomaly.intensity*.7:0,now,.65);
     this.anomalyFilter?.frequency.setTargetAtTime(100+this.anomaly.intensity*240,now,.7);
-    const track = MUSIC_TRACKS.find(t => t.id === this.settings.track) ?? MUSIC_TRACKS[0];
+    const campaign=this.campaignState,selected=campaign?.active?(campaign.phase==='victory'?'titan':campaign.phase==='battle'?campaign.order[Math.min(2,campaign.wave-1)]:this.current?.track?.id??this.settings.track):this.settings.track;
+    const track = ALL_MUSIC_TRACKS.find(t => t.id === selected) ?? MUSIC_TRACKS[0];
     if (!this.current || this.current.track?.id !== track.id) this.changeTrack(track);
     if (this.musicActive) {
       clearTimeout(this.pauseTimer); this.pauseTimer = undefined;
@@ -208,7 +216,7 @@ export class SpaceAudio {
     clearTimeout(this.fadeTimer); clearTimeout(this.pauseTimer);
     document.removeEventListener('visibilitychange', this.visibility);
     for (const slot of this.slots) { slot.element.onwaiting = slot.element.onplaying = slot.element.onerror = null; this.release(slot); slot.source.disconnect(); slot.gain.disconnect(); }
-    this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;this.driveTones=[];this.airFilter=undefined;this.relicGain=undefined;
+    this.effects=[];this.current = this.retiring = undefined; this.slots = []; this.onMusicState = undefined;this.driveTones=[];this.airFilter=undefined;this.relicGain=undefined;
     void this.ctx?.close().catch(() => {}); this.ctx = null;
   }
 }

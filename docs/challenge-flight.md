@@ -29,10 +29,34 @@ Shields regenerate after six seconds without hits; hull does not. Defeat freezes
 
 ## Arsenal and emergency blink
 
-Pulse and Ion now fire paired port/starboard bolts converging at the aiming point. Their volley intervals are 0.07s and 0.14s; projectile travel speeds stay 2400 and 1800 units/s. Rail fires a 0.1s tracer stream at its original 12000 units/s. Per-round damage and heat account for the higher cadence; hostile stats and attack patterns are unchanged. Cooldown residue carries across substeps so fire rate does not depend on display FPS.
+Pulse and Ion now fire paired port/starboard bolts converging at the aiming point. Their volley intervals are 0.07s and 0.14s; projectile travel speeds stay 2400 and 1800 units/s. Rail fires a 0.025s tracer stream at its original 12000 units/s. Per-round damage and heat account for the higher cadence; hostile stats and attack patterns are unchanged. Cooldown residue carries across substeps so fire rate does not depend on display FPS.
 
 Seeker takes 3.8s to reload. Its countdown is shown in the weapon tile and reticle and keeps running while a different weapon is selected; switching cannot bypass it. Reload and heat remain separate systems.
 
 **F** or the BLINK button attempts a sudden lateral displacement of 650 units (with alternate escape directions if blocked). A successful blink takes 24s to recharge and leaves a three-second false position for enemy tracking. Already-fired enemy missiles lose homing; unguided rounds still exist and can hit. This is escape and misdirection, not invulnerability. Physical hull/terrain, nearby celestial spheres and enemy clearances are checked. A blocked attempt consumes no charge and reports NO SAFE EXIT. Pauses freeze recharge and loss of tracking.
 
 Laser and rail trails, turbulent Ion plasma and engine halos use pooled additive materials with soft analytic falloff; Low quality does not require bloom. Enemy hulls have restrained emissive fill plus class-coloured energy rails and engine halos. Wraith body/nav lights still disappear during its actual cloak window. The peaceful scene and lighting profiles are unchanged.
+
+## Finite campaign
+
+Challenge now ends after three waves: 4, 5 and 6 confirmed kills. Twenty seconds
+separate completed waves; the final five seconds have an inbound warning.
+Only a kill reduces remaining attackers. Capacity-limited devices queue the
+remaining ships rather than dropping them. Jump preserves wave, kill count and
+survivor health; distant enemies are redeployed, never credited as destroyed.
+Blocked spawning cannot incorrectly advance the campaign. Hull never auto-repairs.
+
+The three battle recordings play once each in a shuffled order. Intermissions
+mute and pause music while leaving engine/space settings intact. Final victory
+clears incoming rounds, starts Titan and keeps the challenge controls. After
+30 active seconds a choice offers continued post-war flight or peaceful flight.
+Continuing keeps the world, hull, controls and Titan with no further enemies.
+Retry starts a fresh campaign; pause/hidden tabs freeze all campaign timers.
+
+Right mouse down cycles 1–4 on the canvas without opening a context menu or
+interrupting a held left trigger. Number keys remain available. Rail is now an
+orange CIWS-style stream (40 rounds/s) of short separated tracers. Per-round
+damage/heat preserve roughly the previous total output. Explosions are pooled
+billboard fire flashes lasting under half a second, without fragments, wire
+spheres, smoke simulation or dynamic lights. Weapon effects have their own
+saved enable/volume settings and briefly duck (not stop) the music while firing.

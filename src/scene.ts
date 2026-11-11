@@ -30,7 +30,7 @@ export { regions } from './graphics/config';
 export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
 export type CombatTarget={id:number;kind:number;x:number;y:number;hull:number;shield:number;cloak:boolean;warning:boolean};
-export type JumpEvents={onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
+export type JumpEvents={onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
 export function createScene(el: HTMLDivElement, get: () => Flight, controller: FlightController, joystick: HTMLElement, events:JumpEvents = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
   renderer.setClearColor('#040710');
@@ -57,7 +57,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
   const combat=new CombatSimulation(),combatGraphics=createCombatGraphics(scene),fire=get().combatInput??{weapon:0,firing:false,blinkRequested:false};let lastCombat=-1,combatWasJumping=false;
-  events.onCombatControls?.({retry:()=>{combat.reset();controller.reset(true);}});combat.onEvent=e=>events.onCombatSound?.(e);
+  events.onCombatControls?.({retry:()=>{combat.reset();controller.reset(true);},dismissVictory:()=>combat.dismissVictory()});combat.onEvent=e=>events.onCombatSound?.(e);
   const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||jump.busy||!!s.hazardHold||surface.busy,paused:s.paused};},fire);
   const combatPoint=new T.Vector3(),combatStart=new T.Vector3(),combatEnd=new T.Vector3(),combatVelocity=new T.Vector3(),relicInverse=RELIC_ROTATION.clone().invert();
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput,events.onSpeed);

@@ -3,7 +3,7 @@ import {Quaternion,Vector3} from 'three';
 export const WEAPONS=[
  {name:'Pulse',role:'Rapid fire · light fighters',color:'#82e9ff',interval:.07,speed:2400,damage:11,heat:.035,life:1.1},
  {name:'Ion',role:'Break interceptor shields',color:'#ad9aff',interval:.14,speed:1800,damage:9,heat:.065,life:1.4},
- {name:'Rail',role:'Pierce bomber armour',color:'#ffda91',interval:.1,speed:12000,damage:18,heat:.035,life:.25},
+ {name:'Rail',role:'Pierce bomber armour',color:'#ff8b2b',interval:.025,speed:12000,damage:4.5,heat:.0095,life:.25},
  {name:'Seeker',role:'Track phase hunters · aim to lock',color:'#a5ffc4',interval:3.8,speed:1050,damage:66,heat:.24,life:3.5},
 ] as const;
 export const ENEMY_TYPES=[
@@ -12,12 +12,14 @@ export const ENEMY_TYPES=[
  {name:'Bastion',role:'Armoured missile bomber',weakness:'3 · Rail',color:'#f4cf81',hull:275,shield:0,radius:58,speed:145,damage:30,interval:3.4},
  {name:'Wraith',role:'Phase ambush hunter',weakness:'4 · Seeker',color:'#84eac6',hull:125,shield:30,radius:29,speed:375,damage:22,interval:2.1},
 ] as const;
-export type CombatEvent={kind:'shot'|'hit'|'kill'|'damage'|'wave'|'blink';weapon?:number;position?:Vector3};
+export type CombatEvent={kind:'shot'|'hit'|'kill'|'damage'|'wave'|'blink'|'reload';weapon?:number;position?:Vector3};
 export type Enemy={id:number;active:boolean;kind:number;position:Vector3;velocity:Vector3;rotation:Quaternion;hull:number;shield:number;cooldown:number;age:number;hit:number;cloak:boolean;phase:number};
 export type Shot={active:boolean;friendly:boolean;weapon:number;position:Vector3;previous:Vector3;velocity:Vector3;life:number;damage:number;target:number;homing:boolean;distance?:number};
 export type Burst={active:boolean;position:Vector3;age:number;size:number;kill:boolean};
-export type CombatReading={active:boolean;shield:number;hull:number;heat:number;overheated:boolean;kills:number;wave:number;incoming:number;enemies:number;dead:boolean;hit:number;locked:boolean;weapon:number;missileReload:number;blinkCooldown:number;trackingLost:number;blinkFlash:number;blinkBlocked:number};
-export const EMPTY_COMBAT:CombatReading={active:false,shield:100,hull:100,heat:0,overheated:false,kills:0,wave:1,incoming:7,enemies:0,dead:false,hit:0,locked:false,weapon:0,missileReload:0,blinkCooldown:0,trackingLost:0,blinkFlash:0,blinkBlocked:0};
+export type CampaignPhase='incoming'|'battle'|'intermission'|'victory';
+export const WAVE_COUNTS=[4,5,6] as const;
+export type CombatReading={active:boolean;shield:number;hull:number;heat:number;overheated:boolean;kills:number;wave:number;incoming:number;enemies:number;dead:boolean;hit:number;locked:boolean;weapon:number;phase:CampaignPhase;waveTotal:number;remaining:number;deployed:number;session:number;won:boolean;postwarTime:number;promptReady:boolean;missileReload:number;blinkCooldown:number;trackingLost:number;blinkFlash:number;blinkBlocked:number};
+export const EMPTY_COMBAT:CombatReading={active:false,shield:100,hull:100,heat:0,overheated:false,kills:0,wave:1,incoming:7,enemies:0,dead:false,hit:0,locked:false,weapon:0,phase:'incoming',waveTotal:4,remaining:4,deployed:0,session:0,won:false,postwarTime:0,promptReady:false,missileReload:0,blinkCooldown:0,trackingLost:0,blinkFlash:0,blinkBlocked:0};
 export type Pilot={position:Vector3;velocity:Vector3;rotation:Quaternion;weapon:number;firing:boolean};
 export type Obstruction=(a:Vector3,b:Vector3)=>boolean;
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
@@ -31,15 +33,20 @@ export class CombatSimulation{
  readonly shots:Shot[]=Array.from({length:128},()=>({active:false,friendly:true,weapon:0,position:new Vector3(),previous:new Vector3(),velocity:new Vector3(),life:0,damage:0,target:-1,homing:false}));
  readonly bursts:Burst[]=Array.from({length:20},()=>({active:false,position:new Vector3(),age:0,size:1,kill:false}));
  active=false;shield=100;hull=100;heat=0;overheated=false;kills=0;wave=1;incoming=7;hit=0;locked=false;weapon=0;limit=6;
+ phase:CampaignPhase='incoming';waveKills=0;session=0;postwarTime=0;promptDismissed=false;private waveStarted=false;private deployClock=0;private pending:{kind:number;hull:number;shield:number}[]=[];
  blinkCooldown=0;trackingLost=0;blinkFlash=0;blinkBlocked=0;
  private cooldown=[0,0,0,0];private readonly decoy=new Vector3();private readonly searchRight=new Vector3();private readonly searchUp=new Vector3();private readonly searchForward=new Vector3();private lastHit=0;private time=0;private state=71823;
  private readonly forward=new Vector3();private readonly right=new Vector3();private readonly up=new Vector3();private readonly v=new Vector3();private readonly next=new Vector3();private readonly target=new Vector3();private readonly aim=new Vector3();private readonly q=new Quaternion();private readonly z=new Vector3(0,0,1);private readonly zero=new Vector3();
  onEvent?:(event:CombatEvent)=>void;
  get dead(){return this.hull<=0;}
- reset(){this.shield=100;this.hull=100;this.heat=0;this.overheated=false;this.kills=0;this.wave=1;this.incoming=7;this.hit=0;this.time=0;this.cooldown.fill(0);this.blinkCooldown=this.trackingLost=this.blinkFlash=this.blinkBlocked=0;this.lastHit=0;this.clear();}
+ get won(){return this.phase==='victory';}
+ get waveTotal(){return WAVE_COUNTS[Math.min(2,this.wave-1)];}
+ get remaining(){return Math.max(0,this.waveTotal-this.waveKills);}
+ dismissVictory(){this.promptDismissed=true;}
+ reset(){this.session++;this.phase='incoming';this.waveKills=0;this.waveStarted=false;this.pending=[];this.deployClock=0;this.postwarTime=0;this.promptDismissed=false;this.shield=100;this.hull=100;this.heat=0;this.overheated=false;this.kills=0;this.wave=1;this.incoming=7;this.hit=0;this.time=0;this.cooldown.fill(0);this.blinkCooldown=this.trackingLost=this.blinkFlash=this.blinkBlocked=0;this.lastHit=0;this.clear();}
  clear(){for(const e of this.enemies)e.active=false;for(const s of this.shots)s.active=false;for(const b of this.bursts)b.active=false;this.locked=false;this.trackingLost=0;this.blinkFlash=0;}
- transit(){this.clear();this.incoming=7;}
- reading():CombatReading{return{active:this.active,shield:this.shield,hull:this.hull,heat:this.heat,overheated:this.overheated,kills:this.kills,wave:this.wave,incoming:this.incoming,enemies:this.enemies.filter(e=>e.active).length,dead:this.dead,hit:this.hit,locked:this.locked,weapon:this.weapon,missileReload:Math.max(0,this.cooldown[3]),blinkCooldown:this.blinkCooldown,trackingLost:this.trackingLost,blinkFlash:this.blinkFlash,blinkBlocked:this.blinkBlocked};}
+ transit(){if(this.phase==='battle'){for(const e of this.enemies)if(e.active)this.pending.push({kind:e.kind,hull:e.hull,shield:e.shield});this.phase='incoming';this.incoming=7;}this.clear();}
+ reading():CombatReading{return{active:this.active,shield:this.shield,hull:this.hull,heat:this.heat,overheated:this.overheated,kills:this.kills,wave:this.wave,incoming:this.incoming,enemies:this.enemies.filter(e=>e.active).length,dead:this.dead,hit:this.hit,locked:this.locked,weapon:this.weapon,phase:this.phase,waveTotal:this.waveTotal,remaining:this.remaining,deployed:this.enemies.filter(e=>e.active).length,session:this.session,won:this.won,postwarTime:this.postwarTime,promptReady:this.won&&this.postwarTime>=30&&!this.promptDismissed,missileReload:Math.max(0,this.cooldown[3]),blinkCooldown:this.blinkCooldown,trackingLost:this.trackingLost,blinkFlash:this.blinkFlash,blinkBlocked:this.blinkBlocked};}
  get elapsed(){return this.time;}
  blink(p:Pilot,blocked:Obstruction=()=>false){
   if(!this.active||this.dead||this.blinkCooldown>0)return false;
@@ -58,12 +65,21 @@ export class CombatSimulation{
  }
  private random(){this.state=(Math.imul(this.state,1664525)+1013904223)>>>0;return this.state/4294967296;}
  private burst(position:Vector3,kill=false){const b=this.bursts.find(b=>!b.active)??this.bursts[0];b.active=true;b.position.copy(position);b.age=0;b.size=kill?70:20;b.kill=kill;}
- private spawn(p:Pilot,blocked:Obstruction){
-  const count=Math.min(this.limit,4+Math.floor((this.wave-1)/2));
-  for(let i=0;i<count;i++){const e=this.enemies[i],spec=ENEMY_TYPES[i%4];e.kind=i%4;e.hull=spec.hull;e.shield=spec.shield;e.age=0;e.hit=0;e.cloak=false;e.cooldown=2+i*.55;
-   let safe=false;for(let attempt=0;attempt<12;attempt++){const angle=(i-(count-1)/2)*.38+(this.random()-.5)*.18,range=900+this.random()*450;this.v.set(Math.sin(angle)*range,(this.random()-.5)*500,-Math.cos(angle)*range).applyQuaternion(p.rotation);e.position.copy(p.position).add(this.v);if(!blocked(e.position,e.position)&&!blocked(p.position,e.position)){safe=true;break;}}
-   e.active=safe;e.velocity.copy(p.velocity);e.rotation.copy(p.rotation);
-  }this.onEvent?.({kind:'wave'});
+ private startWave(){
+  if(!this.waveStarted){this.waveKills=0;this.pending=Array.from({length:this.waveTotal},(_,i)=>{const kind=i%4,spec=ENEMY_TYPES[kind];return{kind,hull:spec.hull,shield:spec.shield};});this.waveStarted=true;this.onEvent?.({kind:'wave'});}
+  this.phase='battle';this.deployClock=0;
+ }
+ private deploy(p:Pilot,blocked:Obstruction){
+  let active=this.enemies.filter(e=>e.active).length;
+  for(const e of this.enemies){if(e.active||active>=this.limit||!this.pending.length)continue;const next=this.pending[0];e.kind=next.kind;e.hull=next.hull;e.shield=next.shield;e.age=0;e.hit=0;e.cloak=false;e.cooldown=2+active*.55;
+   let safe=false;for(let attempt=0;attempt<12;attempt++){const angle=(active-(Math.min(this.limit,this.remaining)-1)/2)*.38+(this.random()-.5)*.4,range=900+this.random()*450;this.v.set(Math.sin(angle)*range,(this.random()-.5)*500,-Math.cos(angle)*range).applyQuaternion(p.rotation);e.position.copy(p.position).add(this.v);if(!blocked(e.position,e.position)&&!blocked(p.position,e.position)){safe=true;break;}}
+   e.active=safe;if(!safe)continue;this.pending.shift();active++;e.velocity.copy(p.velocity);e.rotation.copy(p.rotation);
+  }
+ }
+ private finishWave(){
+  for(const s of this.shots)s.active=false;this.locked=false;this.pending=[];
+  if(this.wave===3){this.phase='victory';this.postwarTime=0;this.incoming=0;}
+  else{this.phase='intermission';this.incoming=20;this.waveStarted=false;}
  }
  private lock(p:Pilot){let best:Enemy|undefined,alignment=.94;for(const e of this.enemies){if(!e.active||e.position.distanceToSquared(p.position)>3200**2)continue;this.v.copy(e.position).sub(p.position).normalize();const a=this.v.dot(this.forward);if(a>alignment){alignment=a;best=e;}}return best;}
  private launch(position:Vector3,direction:Vector3,speed:number,weapon:number,friendly:boolean,damage:number,target=-1){const s=this.shots.find(s=>!s.active);if(!s)return false;s.active=true;s.friendly=friendly;s.weapon=weapon;s.position.copy(position);s.previous.copy(position);s.velocity.copy(direction).multiplyScalar(speed);s.life=friendly?WEAPONS[weapon].life:4;s.damage=damage;s.target=target;s.homing=weapon===3;s.distance=0;s.position.addScaledVector(direction,friendly?16:12);return true;}
@@ -75,7 +91,7 @@ export class CombatSimulation{
   if(e.cloak&&s.weapon!==3)damage*=.35;
   const absorbed=Math.min(e.shield,damage);e.shield-=absorbed;damage-=absorbed;
   if(s.weapon===1)damage*=.6;e.hull=Math.max(0,e.hull-damage);e.hit=1;this.burst(s.position);this.onEvent?.({kind:'hit',position:s.position});
-  if(e.hull<=0){e.active=false;this.kills++;this.burst(e.position,true);this.onEvent?.({kind:'kill',position:e.position});}
+  if(e.hull<=0){e.active=false;this.kills++;this.waveKills++;this.burst(e.position,true);this.onEvent?.({kind:'kill',position:e.position});if(this.phase==='battle'&&this.remaining===0)this.finishWave();}
   else if(spec.speed>250){e.phase+=1.1;} // Surviving light hulls break away under fire.
  }
  /** paused frames do no damage, cooldown, regeneration or catch-up simulation. */
@@ -86,7 +102,7 @@ export class CombatSimulation{
   const n=Math.ceil(delta/(1/60));for(let i=0;i<n;i++)this.tick(delta/n,p,blocked);
  }
  private tick(dt:number,p:Pilot,blocked:Obstruction){
-  if(this.dead)return;this.time+=dt;this.lastHit+=dt;this.weapon=clamp(Math.floor(p.weapon),0,3);this.heat=Math.max(0,this.heat-dt*.18);if(this.heat<.25)this.overheated=false;this.hit=Math.max(0,this.hit-dt*2.2);for(let i=0;i<4;i++){const firing=i===this.weapon&&p.firing&&!this.overheated;this.cooldown[i]=Math.max(firing?-WEAPONS[i].interval:0,this.cooldown[i]-dt);}this.blinkCooldown=Math.max(0,this.blinkCooldown-dt);this.trackingLost=Math.max(0,this.trackingLost-dt);this.blinkFlash=Math.max(0,this.blinkFlash-dt);this.blinkBlocked=Math.max(0,this.blinkBlocked-dt);
+  if(this.dead)return;this.time+=dt;this.lastHit+=dt;this.weapon=clamp(Math.floor(p.weapon),0,3);this.heat=Math.max(0,this.heat-dt*.18);if(this.heat<.25)this.overheated=false;this.hit=Math.max(0,this.hit-dt*2.2);for(let i=0;i<4;i++){const before=this.cooldown[i];const firing=i===this.weapon&&p.firing&&!this.overheated;this.cooldown[i]=Math.max(firing?-WEAPONS[i].interval:0,this.cooldown[i]-dt);if(i===3&&before>0&&this.cooldown[i]<=0)this.onEvent?.({kind:'reload',weapon:3});}this.blinkCooldown=Math.max(0,this.blinkCooldown-dt);this.trackingLost=Math.max(0,this.trackingLost-dt);this.blinkFlash=Math.max(0,this.blinkFlash-dt);this.blinkBlocked=Math.max(0,this.blinkBlocked-dt);
   if(this.lastHit>6)this.shield=Math.min(100,this.shield+dt*7);
   this.forward.set(0,0,-1).applyQuaternion(p.rotation);this.right.set(1,0,0).applyQuaternion(p.rotation);this.up.set(0,1,0).applyQuaternion(p.rotation);
   const lock=this.lock(p);this.locked=!!lock;
@@ -98,10 +114,13 @@ export class CombatSimulation{
     this.cooldown[this.weapon]+=w.interval;this.heat=Math.min(1,this.heat+w.heat);if(this.heat>=.99)this.overheated=true;this.onEvent?.({kind:'shot',weapon:this.weapon});
    }
   }
-  if(!this.enemies.some(e=>e.active)){this.incoming-=dt;if(this.incoming<=0){this.spawn(p,blocked);this.incoming=8;} }
-  else this.incoming=8;
+  if(this.phase==='incoming'||this.phase==='intermission'){
+   this.incoming=Math.max(0,this.incoming-dt);if(this.incoming<=0){if(this.phase==='intermission')this.wave++;this.startWave();}
+  }
+  if(this.phase==='battle'){this.deployClock-=dt;if(this.deployClock<=0){this.deploy(p,blocked);this.deployClock=.75;}}
+  if(this.won)this.postwarTime+=dt;
   for(const e of this.enemies){if(!e.active)continue;const spec=ENEMY_TYPES[e.kind];e.age+=dt;e.hit=Math.max(0,e.hit-dt*3);e.cooldown-=dt;const distance=e.position.distanceTo(p.position);
-   if(distance>14000){e.active=false;continue;}
+   if(distance>14000){this.pending.push({kind:e.kind,hull:e.hull,shield:e.shield});e.active=false;continue;}
    const tracking=this.trackingLost>0?this.decoy:p.position,trackedVelocity=this.trackingLost>0?this.zero:p.velocity;
    const basisRight=this.trackingLost>0?this.searchRight:this.right,basisUp=this.trackingLost>0?this.searchUp:this.up,basisForward=this.trackingLost>0?this.searchForward:this.forward;
    const phase=e.age*(e.kind===0?1.35:e.kind===3?1.7:.65)+e.phase;
@@ -135,7 +154,7 @@ export class CombatSimulation{
    if(hit){s.position.copy(this.next);this.damage(hit,s);s.active=false;}
    else if(!s.friendly&&Number.isFinite(entry)){s.active=false;const absorb=Math.min(this.shield,s.damage);this.shield-=absorb;this.hull=Math.max(0,this.hull-s.damage+absorb);this.lastHit=0;this.hit=1;this.onEvent?.({kind:'damage'});if(this.dead){p.firing=false;for(const shot of this.shots)shot.active=false;}}
   }
-  for(const b of this.bursts)if(b.active){b.age+=dt;if(b.age>(b.kill?1.1:.25))b.active=false;}
-  if(!this.enemies.some(e=>e.active)&&this.incoming>=7.9&&this.kills>0){this.wave++;this.incoming=7.8;}
+  for(const b of this.bursts)if(b.active){b.age+=dt;if(b.age>(b.kill?.48:.16))b.active=false;}
+  if(this.phase==='battle'&&this.remaining===0)this.finishWave();
  }
 }

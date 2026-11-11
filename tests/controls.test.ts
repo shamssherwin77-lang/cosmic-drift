@@ -181,7 +181,7 @@ test('audio preferences survive malformed storage and sanitize saved mixer value
   assert.deepEqual(parseAudioPreferences('{broken'), DEFAULT_AUDIO);
   assert.deepEqual(parseAudioPreferences('null'), DEFAULT_AUDIO);
   const preferences = parseAudioPreferences(JSON.stringify({ track:'jellyfish', engine:7, space:-2, music:.75, engineEnabled:false, spaceEnabled:true, musicEnabled:false }));
-  assert.deepEqual(preferences, { track:'jellyfish', engine:1, space:0, music:.75, engineEnabled:false, spaceEnabled:true, musicEnabled:false });
+  assert.deepEqual(preferences, { ...DEFAULT_AUDIO, track:'jellyfish', engine:1, space:0, music:.75, engineEnabled:false, spaceEnabled:true, musicEnabled:false });
   const invalid = parseAudioPreferences(JSON.stringify({ track:'missing-song', music:'loud', spaceEnabled:'yes' }));
   assert.deepEqual(invalid, DEFAULT_AUDIO);
   assert.equal(parseAudioPreferences('{"track":"lunar"}').track,'soaring');
