@@ -26,3 +26,13 @@ Shields regenerate after six seconds without hits; hull does not. Defeat freezes
 ## Validation
 
 `npm test` includes deterministic combat and existing flight tests. `tests/browser/combat.spec.mjs` exercises live input, attacks, damage, pause/retry/peaceful return and touch cancellation. Existing published-journey tests cover the peaceful route. Browser screenshots are generated in `test-results`.
+
+## Arsenal and emergency blink
+
+Pulse and Ion now fire paired port/starboard bolts converging at the aiming point. Their volley intervals are 0.07s and 0.14s; projectile travel speeds stay 2400 and 1800 units/s. Rail fires a 0.1s tracer stream at its original 12000 units/s. Per-round damage and heat account for the higher cadence; hostile stats and attack patterns are unchanged. Cooldown residue carries across substeps so fire rate does not depend on display FPS.
+
+Seeker takes 3.8s to reload. Its countdown is shown in the weapon tile and reticle and keeps running while a different weapon is selected; switching cannot bypass it. Reload and heat remain separate systems.
+
+**F** or the BLINK button attempts a sudden lateral displacement of 650 units (with alternate escape directions if blocked). A successful blink takes 24s to recharge and leaves a three-second false position for enemy tracking. Already-fired enemy missiles lose homing; unguided rounds still exist and can hit. This is escape and misdirection, not invulnerability. Physical hull/terrain, nearby celestial spheres and enemy clearances are checked. A blocked attempt consumes no charge and reports NO SAFE EXIT. Pauses freeze recharge and loss of tracking.
+
+Laser and rail trails, turbulent Ion plasma and engine halos use pooled additive materials with soft analytic falloff; Low quality does not require bloom. Enemy hulls have restrained emissive fill plus class-coloured energy rails and engine halos. Wraith body/nav lights still disappear during its actual cloak window. The peaceful scene and lighting profiles are unchanged.

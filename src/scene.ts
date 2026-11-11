@@ -27,7 +27,7 @@ import type { JumpTarget, NavigationInfo } from './graphics/universe';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
 export { regions } from './graphics/config';
 
-export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
+export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
 export type CombatTarget={id:number;kind:number;x:number;y:number;hull:number;shield:number;cloak:boolean;warning:boolean};
 export type JumpEvents={onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
@@ -56,9 +56,9 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const arrivalRotation=new T.Euler(0,0,0,'YXZ');
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
-  const combat=new CombatSimulation(),combatGraphics=createCombatGraphics(scene),fire=get().combatInput??{weapon:0,firing:false};let lastCombat=-1,combatWasJumping=false;
+  const combat=new CombatSimulation(),combatGraphics=createCombatGraphics(scene),fire=get().combatInput??{weapon:0,firing:false,blinkRequested:false};let lastCombat=-1,combatWasJumping=false;
   events.onCombatControls?.({retry:()=>{combat.reset();controller.reset(true);}});combat.onEvent=e=>events.onCombatSound?.(e);
-  const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||jump.busy||!!s.hazardHold,paused:s.paused};},fire);
+  const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||jump.busy||!!s.hazardHold||surface.busy,paused:s.paused};},fire);
   const combatPoint=new T.Vector3(),combatStart=new T.Vector3(),combatEnd=new T.Vector3(),combatVelocity=new T.Vector3(),relicInverse=RELIC_ROTATION.clone().invert();
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput,events.onSpeed);
   const clock = new T.Clock(), budget = new FrameBudget();
@@ -147,11 +147,15 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     };
     // Desktop uses mouse-owned flight; mobile retains the existing joystick and cruise slider.
     const pilotVelocity=controller.velocity.lengthSq()>0?combatVelocity.copy(controller.velocity):combatVelocity.set(0,0,-controller.speed).applyQuaternion(controller.shipQuaternion);
+    if(fire.blinkRequested){fire.blinkRequested=false;if(s.challenge&&!s.paused&&!s.blocked&&!jump.busy&&!surface.busy&&combat.blink({position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},(a,b)=>{
+      if(blockedShot(a,b))return true;let inside=false;const point=b.clone().sub(previousPosition),sphere=new T.Sphere();
+      scene.traverseVisible(o=>{if(!(o instanceof T.Mesh)||!['planet','star','moon','rocky-body'].includes(o.userData.kind))return;if(!o.geometry.boundingSphere)o.geometry.computeBoundingSphere();o.updateWorldMatrix(true,false);sphere.copy(o.geometry.boundingSphere!).applyMatrix4(o.matrixWorld);if(point.distanceTo(sphere.center)<sphere.radius+25)inside=true;});return inside;
+    })){relic.update(relicWorld,controller.position,surfaceTime,jump.veil);terrain.update(landingWorld,controller.position,surfaceTime,jump.veil);singularity.update(hazard?.position??null,controller.position,time,jump.veil);}}
     combat.step(delta,{position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},!!s.challenge&&s.started,s.paused||s.blocked||jump.busy||!!s.hazardHold||surface.busy,blockedShot);
-    combatGraphics.update(combat,controller.position,!!s.challenge&&s.started&&!jump.busy);
+    combatGraphics.update(combat,controller.position,!!s.challenge&&s.started&&!jump.busy,camera);
     const combatNow=performance.now();
     if(s.challenge&&combatNow>=lastCombat+100){lastCombat=combatNow;camera.updateMatrixWorld();const targets:CombatTarget[]=[];
-      for(const e of combat.enemies){if(!e.active)continue;const v=e.position.clone().sub(controller.position),front=v.clone().applyQuaternion(camera.getWorldQuaternion(new T.Quaternion()).invert()).z<0;v.project(camera);targets.push({id:e.id,kind:e.kind,x:T.MathUtils.clamp(front?v.x:-v.x,-.9,.9),y:T.MathUtils.clamp(front?v.y:-v.y,-.72,.72),hull:e.hull/ENEMY_TYPES[e.kind].hull,shield:e.shield/Math.max(1,ENEMY_TYPES[e.kind].shield),cloak:e.cloak,warning:e.cooldown<.8&&!e.cloak});}
+      for(const e of combat.enemies){if(!e.active)continue;const v=e.position.clone().sub(controller.position),front=v.clone().applyQuaternion(camera.getWorldQuaternion(new T.Quaternion()).invert()).z<0;v.project(camera);targets.push({id:e.id,kind:e.kind,x:T.MathUtils.clamp(front?v.x:-v.x,-.9,.9),y:T.MathUtils.clamp(front?v.y:-v.y,-.72,.72),hull:e.hull/ENEMY_TYPES[e.kind].hull,shield:e.shield/Math.max(1,ENEMY_TYPES[e.kind].shield),cloak:e.cloak,warning:e.cooldown<.8&&!e.cloak&&combat.trackingLost<=0});}
       events.onCombat?.(combat.reading(),targets);
     }
 
