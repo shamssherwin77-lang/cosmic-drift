@@ -38,3 +38,36 @@ Cosmic Drift changes: transcoded the above editions to stereo MP3, 44.1 kHz,
 No new musical parts were composed or synthesized for these recordings.
 They are recorded instrumental/ambient music, not Buddhist chanting or
 recordings of a religious ceremony.
+
+CHALLENGE CAMPAIGN MUSIC — CC BY 4.0
+License: https://creativecommons.org/licenses/by/4.0/
+All four are human-composed recordings. These game editions are loudness-normalized
+(-18 LUFS, -2 dBTP) and transcoded to 80 kbps stereo MP3. No music is synthesized.
+
+Legionnaire (2022 Remaster) — Scott Buckley
+https://www.scottbuckley.com.au/library/legionnaire-2022/
+'Legionnaire' by Scott Buckley — released under CC-BY 4.0. www.scottbuckley.com.au
+Recording mirror: vatiolibre/vatioboard, commit 4086e5b69c8773a989689ca7eb08f33aa1ebd073,
+public/audio/demo/Legionnaire2022.mp3. Full recording, 187 seconds.
+
+Volatile Reaction — Kevin MacLeod (incompetech.com)
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400039
+Licensed under Creative Commons: By Attribution 4.0 License.
+Recording mirror: CrazyMew37/grindworks_quirky_tweaks, commit
+686b7b9032955b2438cd6bc5ba10a38df2e2af0f,
+CrazyMew37-KevinMacLeodSoundpack/music/Volatile Reaction.mp3. Full recording.
+
+Chase Pulse — Kevin MacLeod (incompetech.com)
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100383
+Licensed under Creative Commons: By Attribution 4.0 License.
+Recording mirror: CalaMariGold/TREPIDATION, commit
+bd08f67a588e242573fbc01f2ebe6178d976737f,
+config/MusicTriggers/songs/overworld_chasepulse_kevinmacleod.ogg.
+Full 116-second recording; not the shorter 96-second edited edition.
+
+Titan — Scott Buckley
+https://www.scottbuckley.com.au/library/titan/
+'Titan' by Scott Buckley — released under CC-BY 4.0. www.scottbuckley.com.au
+Recording mirror: joaosaiko/White-Blood-Cell-The-Threat-Arises, commit
+9ce75f03af7536a18e168be72f1f791acae17c35, sounds/sb_titan/sb_titan.mp3.
+Full recording, 176 seconds.
