@@ -1,10 +1,11 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 async function freezeClock(page){await page.clock.install({time:new Date('2030-01-01T00:00:00Z')});await page.clock.pauseAt(new Date('2030-01-01T00:00:01Z'));}
 async function advance(page,ms){for(let t=0;t<ms;t+=100)await page.clock.fastForward(Math.min(100,ms-t));}
 
 test('desktop J jumps once, pauses safely, reseeds the destination and restores manual controls',async({page})=>{
   test.setTimeout(90000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await freezeClock(page);await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();
+  await freezeClock(page);await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');
   await page.getByRole('slider',{name:'Touch sensitivity'}).focus();await page.keyboard.press('j');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle');
   await page.getByRole('button',{name:'Close settings',exact:true}).click();await page.locator('#speed').fill('25');
@@ -25,7 +26,7 @@ test.describe('mobile Light Jump',()=>{
   test.use({viewport:{width:915,height:412},hasTouch:true,isMobile:true,deviceScaleFactor:1});
   test('a held joystick is cleared, the button fits landscape, and reduced motion survives a jump',async({page,context})=>{
     test.setTimeout(90000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-    await freezeClock(page);await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await advance(page,100);
+    await freezeClock(page);await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();await advance(page,100);
     const stick=page.getByRole('group',{name:'Touch flight joystick'}),r=await stick.boundingBox();
     const cdp=await context.newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:r.x+r.width*.8,y:r.y+r.height*.5}]});
     const button=page.getByRole('button',{name:/Light Jump/}),b=await button.boundingBox();expect(b.height).toBeGreaterThanOrEqual(38);expect(b.x+b.width).toBeLessThanOrEqual(915);expect(b.y+b.height).toBeLessThanOrEqual(412);

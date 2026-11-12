@@ -1,3 +1,4 @@
+import {OpeningCinematic} from './intro';
 import {CombatHUD} from './combat/hud';
 import {EMPTY_COMBAT,type CombatReading,type CombatEvent} from './combat/simulation';
 import type {CombatTarget} from './scene';
@@ -119,4 +120,8 @@ function App(){
   {error&&<div role="alert" className="error">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}
  </main>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+function Experience(){
+ const[introFinished,setIntroFinished]=useState(false);
+ return introFinished?<App/>:<OpeningCinematic onComplete={()=>setIntroFinished(true)}/>;
+}
+createRoot(document.getElementById('root')!).render(<Experience/>);

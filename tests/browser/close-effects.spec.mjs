@@ -1,6 +1,7 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 test('close overlapping effects keep most of the pilot view clear',async({page})=>{
- await page.goto('/');
+ await page.goto('/');await skipIntro(page);
  const samples=await page.evaluate(async()=>{
  const T=await import('/node_modules/three/build/three.module.js'),{createCombatGraphics}=await import('/src/combat/graphics.ts'),{CombatSimulation}=await import('/src/combat/simulation.ts');
  const renderer=new T.WebGLRenderer({logarithmicDepthBuffer:true,preserveDrawingBuffer:true});renderer.setSize(320,180);const scene=new T.Scene();scene.background=new T.Color('#040710');const camera=new T.PerspectiveCamera(68,320/180,.1,120000),sim=new CombatSimulation(),graphics=createCombatGraphics(scene),samples=[];

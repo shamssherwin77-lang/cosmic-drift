@@ -1,3 +1,4 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 
 async function hazardousCourse(page){
@@ -21,7 +22,7 @@ async function injectPilot(page,course){
   const body=source.replace('new FlightController()',`(()=>{const pilot=new FlightController();pilot.yaw=${course.yaw};pilot.pitch=${course.pitch};window.testPilot??=pilot;return window.testPilot;})()`);
   await route.fulfill({response,body});
  });
- await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();
+ await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>!!window.testPilot)).toBe(true);
  await page.waitForTimeout(250);
@@ -68,7 +69,7 @@ test('curved-ray black hole renders from front, rear and near orbit at every qua
 });
 
 test('a new ordinary journey reaches the warning on Jump three and high cruise speed cannot skip discovery',async({page})=>{
- test.setTimeout(150000);await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
+ test.setTimeout(150000);await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('button',{name:'Close settings',exact:true}).click();
  for(let i=0;i<2;i++){await page.getByRole('button',{name:'Light Jump',exact:true}).click();if(i===1)await page.getByRole('button',{name:'Enter nebula',exact:false}).click();await expect(page.getByRole('alertdialog')).toHaveCount(0);await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});}
  await page.locator('#speed').fill('1200');await page.getByRole('button',{name:'Light Jump',exact:true}).click();await expect(page.getByRole('alertdialog')).toBeVisible();await page.getByRole('button',{name:'I understand. Continue jump',exact:false}).click();await expect(page.locator('main')).toHaveAttribute('data-jump-phase','charging');await expect(page.locator('main')).toHaveAttribute('data-jump-phase','idle',{timeout:45000});
  await expect(page.locator('#speed')).toHaveValue('18');await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');await expect(page.locator('main')).toHaveAttribute('data-region','4');await page.waitForTimeout(1500);await expect(page.locator('.navigation-caption>span')).toHaveText('Caeli-EFC7');

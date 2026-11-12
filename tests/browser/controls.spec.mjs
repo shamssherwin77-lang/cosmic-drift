@@ -1,3 +1,4 @@
+import {skipIntro} from './skip-intro.mjs';
 import { test, expect } from '@playwright/test';
 
 async function harness(page) {
@@ -84,7 +85,7 @@ test.describe('Android-style landscape touch input', () => {
   });
   test('real application: landscape controls, settings scrolling and WebGL startup', async ({page}) => {
     const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-    await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();
+    await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();
     await page.getByRole('button',{name:'Settings',exact:true}).tap();
     await expect(page.getByRole('combobox',{name:'Graphics quality'})).toHaveValue('Low');
     await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');

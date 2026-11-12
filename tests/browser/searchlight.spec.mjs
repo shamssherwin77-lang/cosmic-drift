@@ -1,3 +1,4 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 
 test('searchlight illuminates a distant wall, follows ship attitude and switches off cleanly',async({page})=>{
@@ -13,5 +14,5 @@ test('searchlight illuminates a distant wall, follows ship attitude and switches
 });
 
 test('desktop L and mobile button share the lamp toggle',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Start journey'}).click();const lamp=page.getByRole('button',{name:'Searchlight',exact:true});await expect(lamp).toHaveAttribute('aria-pressed','false');await page.keyboard.press('l');await expect(lamp).toHaveAttribute('aria-pressed','true');await page.keyboard.press('l');await expect(lamp).toHaveAttribute('aria-pressed','false');await page.setViewportSize({width:844,height:390});await lamp.click();await expect(lamp).toHaveAttribute('aria-pressed','true');await lamp.click();await expect(lamp).toHaveAttribute('aria-pressed','false');
+ await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey'}).click();const lamp=page.getByRole('button',{name:'Searchlight',exact:true});await expect(lamp).toHaveAttribute('aria-pressed','false');await page.keyboard.press('l');await expect(lamp).toHaveAttribute('aria-pressed','true');await page.keyboard.press('l');await expect(lamp).toHaveAttribute('aria-pressed','false');await page.setViewportSize({width:844,height:390});await lamp.click();await expect(lamp).toHaveAttribute('aria-pressed','true');await lamp.click();await expect(lamp).toHaveAttribute('aria-pressed','false');
 });

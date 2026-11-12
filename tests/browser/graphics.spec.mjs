@@ -1,3 +1,4 @@
+import {skipIntro} from './skip-intro.mjs';
 import { test, expect } from '@playwright/test';
 
 test('all quality tiers render outside/inside clouds and release GPU resources', async ({page}) => {
@@ -45,7 +46,7 @@ test('all quality tiers render outside/inside clouds and release GPU resources',
 test('lighting defaults to Balanced and brightness/bloom can be changed without losing controls', async ({page}) => {
   const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   // Touch hardware starts on the lightest tier; this test exercises the real app.
-  await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();
+  await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Environment lighting'})).toHaveValue('Balanced');
   await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');
@@ -128,7 +129,7 @@ test('each region has multiple large landmarks and instanced rocks at Low and Hi
 });
 
 test('performance mode lowers the rendering budget while preserving the selected quality and manual mode',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Graphics quality'})).toHaveValue('Medium');
   await page.getByLabel('Adaptive resolution',{exact:true}).uncheck();
   await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('High');

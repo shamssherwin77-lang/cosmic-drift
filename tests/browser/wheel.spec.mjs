@@ -1,7 +1,8 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 
 test('wheel and slider share the throttle, enforce bounds and ignore paused or blocked flight',async({page})=>{
- const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');const slider=page.locator('#speed');await page.mouse.move(400,200);await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('18');
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');await skipIntro(page);const slider=page.locator('#speed');await page.mouse.move(400,200);await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('18');
  await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.mouse.move(400,200);await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('38');await page.mouse.wheel(0,100);await expect(slider).toHaveValue('18');
  await slider.fill('70');await page.mouse.move(400,200);await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('90');
  await slider.fill('1199');await page.mouse.move(400,200);await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('1200');await slider.fill('1');await page.mouse.move(400,200);await page.mouse.wheel(0,100);await expect(slider).toHaveValue('0');
@@ -11,7 +12,7 @@ test('wheel and slider share the throttle, enforce bounds and ignore paused or b
 });
 
 test('wheel works while mouse is captured for Descent and accumulates tiny trackpad deltas',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Descent free flight',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();await page.locator('canvas').click({position:{x:400,y:200}});await expect.poll(()=>page.evaluate(()=>!!document.pointerLockElement)).toBe(true);
+ await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Descent free flight',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();await page.locator('canvas').click({position:{x:400,y:200}});await expect.poll(()=>page.evaluate(()=>!!document.pointerLockElement)).toBe(true);
  const slider=page.locator('#speed');await page.mouse.wheel(0,-100);await expect(slider).toHaveValue('38');
  await page.evaluate(()=>{const canvas=document.querySelector('canvas');for(let i=0;i<10;i++)canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:-.5,cancelable:true}));});await expect(slider).toHaveValue('39');await page.keyboard.press('Escape');
 });

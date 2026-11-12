@@ -1,9 +1,10 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 test.use({viewport:{width:640,height:360}});
 async function setup(page){
  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('console',m=>{if(m.type()==='error'){errors.push(m.text());console.log('CONSOLE ERROR',m.text().slice(0,1000));}});
  await page.route('**/src/scene.ts*',async r=>{const response=await r.fetch(),source=await response.text();await r.fulfill({response,body:source.replace(/new CombatSimulation\(\)/,'(()=>{const c=new CombatSimulation();window.battleTest=c;return c;})()')});});
- await page.goto('/');await page.getByRole('button',{name:'Challenge flight',exact:false}).click();await expect(page.getByLabel('Combat status')).toBeVisible();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Performance mode',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.battleTest?.active),{timeout:20000}).toBe(true);return errors;
+ await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Challenge flight',exact:false}).click();await expect(page.getByLabel('Combat status')).toBeVisible();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Performance mode',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();await expect.poll(()=>page.evaluate(()=>window.battleTest?.active),{timeout:20000}).toBe(true);return errors;
 }
 test('real challenge: all four attackers, weapon selection, mouse fire, damage and pause',async({page})=>{
  test.setTimeout(120000);await page.setViewportSize({width:640,height:360});const errors=await setup(page);const hud=page.getByLabel('Combat status');

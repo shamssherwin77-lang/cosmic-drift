@@ -1,3 +1,4 @@
+import {skipIntro} from './skip-intro.mjs';
 import { test, expect } from '@playwright/test';
 
 const signal = page => page.evaluate(async () => {
@@ -59,7 +60,7 @@ test.describe('mobile audio selection',()=>{
   test.use({viewport:{width:412,height:915},hasTouch:true,isMobile:true,deviceScaleFactor:1});
   test('mix layers, choose music, preserve preferences and restore muted after reload',async({page})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto('/');await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
+    await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).tap();
     await expect(page.getByRole('radio')).toHaveCount(4);
     await page.getByRole('checkbox',{name:'Engine sound',exact:false}).uncheck();
     await expect(page.getByRole('slider',{name:'Engine volume'})).toBeDisabled();
@@ -90,7 +91,7 @@ test('recordings are lazy, credit the composer and show a retryable error instea
   const requests=[];let fail=true;
   page.on('request',request=>{if(request.url().includes('/audio/')&&request.url().includes('.mp3'))requests.push(request.url());});
   await page.route('**/audio/*.mp3',route=>fail&&route.request().url().includes('floating-cities')?route.abort():route.continue());
-  await page.goto('/');expect(requests).toEqual([]);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).click();
+  await page.goto('/');await skipIntro(page);expect(requests).toEqual([]);await page.getByRole('button',{name:'Start journey',exact:true}).click();await page.getByRole('button',{name:'Audio settings',exact:true}).click();
   await page.getByRole('radio',{name:'Floating Cities',exact:true}).check();
   await expect(page.locator('.audio-note')).toHaveAttribute('data-playback-state','error');
   await expect(page.locator('.audio-note')).toContainText(/could not|allow playback/);

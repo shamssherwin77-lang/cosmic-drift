@@ -1,10 +1,11 @@
+import {skipIntro} from './skip-intro.mjs';
 import {test,expect} from '@playwright/test';
 test.use({viewport:{width:640,height:360}});
 async function startCampaign(page){
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.route('**/src/scene.ts*',async r=>{const response=await r.fetch();await r.fulfill({response,body:(await response.text()).replace(/new CombatSimulation\(\)/,'(()=>{const sim=new CombatSimulation();window.campaignSim=sim;return sim;})()')});});
  await page.route('**/src/main.tsx*',async r=>{const response=await r.fetch();await r.fulfill({response,body:(await response.text()).replace(/new SpaceAudio\(\)/,'(window.campaignAudio??=new SpaceAudio())').replace(/new FlightController\(\)/,'(window.campaignPilot??=new FlightController())')});});
- await page.goto('/');await page.getByRole('button',{name:'Challenge flight',exact:false}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Performance mode',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();return errors;
+ await page.goto('/');await skipIntro(page);await page.getByRole('button',{name:'Challenge flight',exact:false}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('combobox',{name:'Graphics quality'}).selectOption('Low');await page.getByRole('checkbox',{name:'Performance mode',exact:true}).check();await page.getByRole('button',{name:'Close settings',exact:true}).click();return errors;
 }
 async function finishWave(page){
  for(let pass=0;pass<8;pass++){
