@@ -90,22 +90,22 @@ test('lighting defaults to Balanced and brightness/bloom can be changed without 
   expect(errors).toEqual([]);
 });
 
-test('observation windows transmit the world on both sides, rear and roof with six batches',async({page})=>{
+test('Meridian observation panes leave the forward, side and roof views open',async({page})=>{
   await page.route('**/cabin-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('/cabin-harness');
   const result=await page.evaluate(async()=>{
     const T=await import('/node_modules/three/build/three.module.js'),{createCockpit}=await import('/src/graphics/cockpit.ts');
-    const ship=new T.Group(),cabin=createCockpit(ship);ship.updateMatrixWorld(true);
-    const opaque=cabin.group.children.filter(o=>o.isMesh&&!o.material.transparent),glass=cabin.group.getObjectByName('observation-glazing');
+    const ship=new T.Group(),cabin=createCockpit(ship);await cabin.ready;ship.updateMatrixWorld(true);
+    const opaque=[];let glass,batches=0;cabin.group.traverse(o=>{if(o.isMesh){batches++;if(!o.material.transparent)opaque.push(o);if(o.material.name.includes('panoramic canopy'))glass=o;}});
     const ray=new T.Raycaster();
-    const directions=[[1,0,0],[-1,0,0],[0,0,1],[.2,1,0],[0,.55,-1],[0,0,-1],[0,-.1,-1],[-.4,-.1,-1],[.4,-.1,-1]];
+    const directions=[[1,0,-.2],[-1,0,-.2],[.2,1,-.2],[0,0,-1],[0,-.1,-1],[-.4,-.1,-1],[.4,-.1,-1]];
     const samples=directions.map(axis=>{ray.set(new T.Vector3(),new T.Vector3(...axis).normalize());return{opaque:ray.intersectObjects(opaque).length,glass:ray.intersectObject(glass).length};});
     ray.set(new T.Vector3(),new T.Vector3(0,-1,0));const floor=ray.intersectObjects(opaque).length;
-    const batches=cabin.group.children.length,transparent=glass.material.transparent,depthWrite=glass.material.depthWrite;
+    const transparent=glass.material.transparent,depthWrite=glass.material.depthWrite;
     cabin.dispose();return{samples,floor,batches,transparent,depthWrite};
   });
   for(const sample of result.samples)expect(sample.opaque).toBe(0);
   for(const sample of result.samples.slice(0,4))expect(sample.glass).toBeGreaterThan(0);
-  expect(result.floor).toBeGreaterThan(0);expect(result.batches).toBe(6);expect(result.transparent).toBe(true);expect(result.depthWrite).toBe(false);
+  expect(result.floor).toBeGreaterThan(0);expect(result.batches).toBe(21);expect(result.transparent).toBe(true);expect(result.depthWrite).toBe(false);
 });
 
 test('each region has multiple large landmarks and instanced rocks at Low and High',async({page})=>{

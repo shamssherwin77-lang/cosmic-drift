@@ -16,6 +16,8 @@ import { LightJump, type JumpPhase } from './light-jump';
 import { ShipFloat } from './ship-float';
 import { createJumpEffect } from './graphics/jump-effect';
 import { createSpace } from './graphics/space';
+import {clampPilotHeight} from './pilot-seat';
+import {COCKPIT_SCALE} from './graphics/cockpit';
 import { createCockpit } from './graphics/cockpit';
 import { createHull } from './graphics/hull';
 import { createCinema } from './graphics/cinema';
@@ -27,7 +29,7 @@ import type { JumpTarget, NavigationInfo } from './graphics/universe';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
 export { regions } from './graphics/config';
 
-export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
+export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; pilotHeight?:number; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
 export type CombatTarget={id:number;kind:number;x:number;y:number;hull:number;shield:number;cloak:boolean;warning:boolean};
 export type JumpEvents={onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
@@ -64,6 +66,8 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const clock = new T.Clock(), budget = new FrameBudget();
   let lastQuality = get().quality, lastPerformance = get().performanceMode, lastAdaptive = get().adaptive;
   let nextNavigation=0,nextHazardUpdate=0;
+  let cockpitNavigation=space.navigation(controller.position,controller.shipQuaternion),nextInstruments=0;
+  const seatOffset=new T.Vector3(),instrumentInverse=new T.Quaternion(),seatInverse=new T.Quaternion(),instrumentPoint=new T.Vector3();
   let frame = 0, time = 0, pausedRenderTime = 0, configuration = '', disposed = false;
   let composer: EffectComposer | null = null, bloomPass: UnrealBloomPass | null = null;
   const disposeComposer = () => {
@@ -87,7 +91,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     if (composer) { composer.setPixelRatio(ratio); composer.setSize(width, height); }
     space.configure(effectiveQuality, ratio, width, height, s.bloom, renderer.extensions.has('EXT_color_buffer_float'), s.performanceMode);
     jumpEffect.configure(effectiveQuality,s.reduced);terrain.configure(effectiveQuality);relic.configure(effectiveQuality,Math.round(height*ratio));singularity.configure(effectiveQuality,Math.round(width*ratio),Math.round(height*ratio));
-    const cinematicShadows=effectiveQuality==='High'&&!s.performanceMode;cinema.configure(cinematicShadows);cockpit.configureEnvironment(cinema.panorama,cinematicShadows);
+    const cinematicShadows=effectiveQuality==='High'&&!s.performanceMode;cinema.configure(cinematicShadows);cockpit.configureEnvironment(cinema.panorama,cinematicShadows,effectiveQuality==='Low');hull.configure(effectiveQuality==='Low');
     configuration = `${s.quality}/${s.bloom}/${s.performanceMode}/${s.adaptive}/${s.reduced}`;
   };
   const visibility=()=>{clock.getDelta();controller.reset(true);events.onAudio?.(0,0,true);};
@@ -170,17 +174,25 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     renderer.toneMappingExposure = T.MathUtils.damp(renderer.toneMappingExposure, lighting.exposure * regions[renderRegion].exposure, .8, graphicsDt);
     space.setJump(visualEnergy,jump.veil);
     space.update(graphicsDt, time, renderRegion, controller.position, lighting.nebula);
-    if(time>=nextNavigation){events.onNavigation?.(space.navigation(controller.position,controller.shipQuaternion));nextNavigation=time+.5;}
+    if(time>=nextNavigation){cockpitNavigation=space.navigation(controller.position,controller.shipQuaternion);events.onNavigation?.(cockpitNavigation);nextNavigation=time+.5;}
     const turning=lastAttitude.angleTo(controller.shipQuaternion)/Math.max(.001,dt);
     const activity=Math.max(controller.keys.size||controller.touchSteering?1:0,Math.min(1,turning*5),Math.min(1,controller.speed/Math.max(1,s.speed)));
     suspension.update(dt,{enabled:!!s.freeFlight&&s.started&&!jump.busy&&!surface.busy,paused:s.paused||!!s.hazardHold||s.blocked&&!jump.busy,reduced:s.reduced,motion:s.motion,activity});
     if(surface.status==='landed')suspension.reset();
     suspension.apply(ship,controller.shipQuaternion,vesselBaseline);lastAttitude.copy(controller.shipQuaternion);
     suspension.applyCamera(camera,controller.lookQuaternion);
+    // Translate in vessel-up, keeping look/ship quaternions and navigation untouched.
+    camera.position.add(seatOffset.set(0,clampPilotHeight(s.pilotHeight??0)*COCKPIT_SCALE,0).applyQuaternion(seatInverse.copy(suspension.rotation).invert()));
     cabinTint.copy(space.tint).lerp(jumpWhite,jump.charge*.3);
     searchlight.update(!!s.searchlight&&s.started&&!jump.busy);
     hull.update(s.cockpit,controller.speed);
-    cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');
+    const instrumentTime=performance.now()/1000;
+    if(instrumentTime>=nextInstruments){
+      nextInstruments=instrumentTime+.25;instrumentInverse.copy(controller.shipQuaternion).invert();
+      const contacts:{x:number;y:number;kind:number}[]=[];let target:{name:string;distance:number}|undefined;
+      if(s.challenge)for(const enemy of combat.enemies){if(!enemy.active)continue;instrumentPoint.copy(enemy.position).sub(controller.position);const distance=instrumentPoint.length();if(!target||distance<target.distance)target={name:ENEMY_TYPES[enemy.kind].name,distance};instrumentPoint.applyQuaternion(instrumentInverse);const r=Math.max(1800,Math.hypot(instrumentPoint.x,instrumentPoint.z));contacts.push({x:instrumentPoint.x/r,y:instrumentPoint.z/r,kind:enemy.kind});}
+      cockpit.update(cabinTint,lighting.cabin*(1+jump.charge*.12),s.mode==='Meditation',s.cockpit,time,{speed:controller.speed,thrust:s.speed,heading:T.MathUtils.euclideanModulo(T.MathUtils.radToDeg(controller.yaw),360),navigation:cockpitNavigation,combat:s.challenge?combat.reading():undefined,contacts,target,searchlight:!!s.searchlight,paused:s.paused});
+    }else cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');
     jumpEffect.update(s.paused?0:Math.min(delta,.1),visualEnergy,space.tint);
     if (bloomPass) bloomPass.strength = s.bloom * (s.mode === 'Meditation' ? .45 : .8+visualEnergy*.2);
     // A paused scene has no flight animation; keep transitions responsive at 15 FPS.

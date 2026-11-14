@@ -50,5 +50,7 @@ test('idle float moves the real vessel rig together while navigation rests, and 
 
  await page.evaluate(()=>{window.floatHarness.settings.paused=true;});await page.waitForTimeout(250);const frozen=await read();await page.waitForTimeout(350);expect((await read()).p).toEqual(frozen.p);expect((await read()).q).toEqual(frozen.q);
  await page.evaluate(()=>{window.floatHarness.settings.paused=false;window.floatHarness.settings.reduced=true;});await expect.poll(async()=>Math.max(...(await read()).q.slice(0,3).map(Math.abs))).toBeLessThan(1e-8);expect((await read()).p).toEqual([0,0,5]);
+ await page.evaluate(()=>{window.floatHarness.settings.pilotHeight=.3;});await expect.poll(async()=>(await read()).cameraLocal[1]).toBeCloseTo(.45,5);expect((await read()).navigation).toEqual([0,0,0]);expect((await read()).q).toEqual([0,0,0,1]);
+ await page.evaluate(()=>{window.floatHarness.settings.pilotHeight=999;});await expect.poll(async()=>(await read()).cameraLocal[1]).toBeCloseTo(.57,5);
  await page.evaluate(()=>{window.floatHarness.dispose();});
 });
