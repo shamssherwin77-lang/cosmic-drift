@@ -1,3 +1,4 @@
+import {NO_FALL,type FallReading} from './singularity-fall';
 import {weaponBuffers} from './combat/weapon-sound';
 import type { HazardLevel } from './singularity';
 import { DEFAULT_AUDIO, MUSIC_TRACKS, ALL_MUSIC_TRACKS,shuffledBattleMusic,type RecordingId, type AudioPreferences, type MusicTrack } from './audio-preferences';
@@ -11,6 +12,8 @@ export class SpaceAudio {
   master?: GainNode; engine?: GainNode; space?: GainNode; music?: GainNode;weapons?:GainNode;musicDuck?:GainNode;
   onMusicState?: (state: MusicPlayback) => void;
   musicState: MusicPlayback = { state: 'idle', track: null };
+  private descent:FallReading=NO_FALL;
+  singularityFall(reading:FallReading){this.descent=reading;if(reading.phase!=='idle'&&this.ctx&&this.alarmGain){this.alarmGain.gain.cancelScheduledValues(this.ctx.currentTime);this.alarmGain.gain.setTargetAtTime(0,this.ctx.currentTime,.04);}this.apply();this.relic(this.relicIntensity);}
   private jumpGain?: GainNode; private jumpTone?: OscillatorNode; private jumpFilter?: BiquadFilterNode;
   private anomaly={briefing:false,level:'clear' as HazardLevel,intensity:0,assist:false};
   private anomalyGain?:GainNode;private alarmGain?:GainNode;private anomalyFilter?:BiquadFilterNode;
@@ -27,7 +30,7 @@ export class SpaceAudio {
   private fadeTimer?: ReturnType<typeof setTimeout>; private pauseTimer?: ReturnType<typeof setTimeout>;
   private visibility = () => this.apply();
   get currentRecording() { return this.current?.element ?? null; }
-  private get musicActive() { return this.campaignAllowsMusic && this.enabled && !this.paused && !document.hidden && !this.anomaly.briefing && this.anomaly.level!=='critical' && !(this.anomaly.assist&&this.anomaly.level!=='clear') && this.settings.musicEnabled && this.settings.music > 0; }
+  private get musicActive() { return this.descent.phase==='idle' && this.campaignAllowsMusic && this.enabled && !this.paused && !document.hidden && !this.anomaly.briefing && this.anomaly.level!=='critical' && !(this.anomaly.assist&&this.anomaly.level!=='clear') && this.settings.musicEnabled && this.settings.music > 0; }
   private report(state: MusicPlayback['state'], message?: string) {
     const track = this.current?.track?.id ?? null;
     if (this.musicState.state === state && this.musicState.track === track && this.musicState.message === message) return;
@@ -125,17 +128,18 @@ export class SpaceAudio {
   }
   private apply() {
     const c = this.ctx; if (!c || c.state === 'closed') return;
+    const falling=this.descent.phase!=='idle',fade=1-this.descent.blackout;
     const now = c.currentTime, active = this.enabled && !this.paused && !document.hidden;
-    this.master!.gain.setTargetAtTime(active ? .65 : 0, now, .18);
+    this.master!.gain.setTargetAtTime(active && this.descent.phase!=='lost' ? .65 : 0, now, .18);
     for (const [channel, volume, enabled] of [
       [this.engine!, this.settings.engine, this.settings.engineEnabled],
       [this.space!, this.settings.space, this.settings.spaceEnabled],
       [this.music!, this.settings.music, this.settings.musicEnabled&&this.campaignAllowsMusic],
       [this.weapons!,this.settings.weapons,this.settings.weaponsEnabled],
-    ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(channel===this.engine&&this.surfaceState.landed?.25:1)*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
+    ] as const) channel.gain.setTargetAtTime(enabled&&!this.anomaly.briefing ? volume*(falling?(channel===this.music||channel===this.weapons?0:channel===this.engine?.22*fade:.15*fade):1)*(channel===this.engine&&this.surfaceState.landed?.25:1)*(channel===this.music?(this.anomaly.level==='critical'||this.anomaly.assist&&this.anomaly.level!=='clear'?0:this.anomaly.level==='caution'?.4:1):1) : 0, now, .16);
     this.airFilter?.frequency.setTargetAtTime(650+this.surfaceState.density*900,now,.7);this.driveTones.forEach((tone,i)=>tone.frequency.setTargetAtTime([38,57,76][i]*(1+this.surfaceState.density*.025),now,.7));
-    this.anomalyGain?.gain.setTargetAtTime(active&&!this.anomaly.briefing&&this.anomaly.level!=='clear'?.12+this.anomaly.intensity*.7:0,now,.65);
-    this.anomalyFilter?.frequency.setTargetAtTime(100+this.anomaly.intensity*240,now,.7);
+    this.anomalyGain?.gain.setTargetAtTime(active&&!this.anomaly.briefing?(falling?(.3+this.descent.strain*.45)*fade:this.anomaly.level!=='clear'?.12+this.anomaly.intensity*.7:0):0,now,.65);
+    this.anomalyFilter?.frequency.setTargetAtTime(falling?100+this.descent.strain*650+Math.sin(this.descent.elapsed*1.8)*40:100+this.anomaly.intensity*240,now,.7);
     const campaign=this.campaignState,selected=campaign?.active?(campaign.phase==='victory'?'titan':campaign.phase==='battle'?campaign.order[Math.min(2,campaign.wave-1)]:this.current?.track?.id??this.settings.track):this.settings.track;
     const track = ALL_MUSIC_TRACKS.find(t => t.id === selected) ?? MUSIC_TRACKS[0];
     if (!this.current || this.current.track?.id !== track.id) this.changeTrack(track);
@@ -190,14 +194,14 @@ export class SpaceAudio {
     slot.element.pause(); slot.element.removeAttribute('src'); slot.element.load();
     if (this.ctx && this.ctx.state !== 'closed') { slot.gain.gain.cancelScheduledValues(this.ctx.currentTime); slot.gain.gain.value = 0; }
   }
-  relic(intensity:number){this.relicIntensity=Math.max(0,Math.min(1,intensity));if(this.ctx&&this.relicGain){this.relicGain.gain.cancelScheduledValues(this.ctx.currentTime);this.relicGain.gain.setTargetAtTime(this.relicIntensity*.24,this.ctx.currentTime,1.2);}}
+  relic(intensity:number){this.relicIntensity=Math.max(0,Math.min(1,intensity));if(this.ctx&&this.relicGain){this.relicGain.gain.cancelScheduledValues(this.ctx.currentTime);this.relicGain.gain.setTargetAtTime(this.relicIntensity*.24*(this.descent.phase==='idle'?1:0),this.ctx.currentTime,1.2);}}
   surface(density:number,landed:boolean){this.surfaceState={density:Math.max(0,Math.min(1,density)),landed};this.apply();}
   hazard(briefing:boolean,level:HazardLevel,intensity:number,assist=false){
     const changed=briefing!==this.anomaly.briefing||level!==this.anomaly.level;
     this.anomaly={briefing,level,intensity:Math.max(0,Math.min(1,intensity)),assist};this.apply();
     if(changed&&this.ctx&&this.alarmGain){
       const now=this.ctx.currentTime,gain=this.alarmGain.gain;gain.cancelScheduledValues(now);gain.setTargetAtTime(0,now,.02);
-      if((briefing||level!=='clear')&&this.enabled&&!this.paused&&!document.hidden){
+      if(this.descent.phase==='idle'&&(briefing||level!=='clear')&&this.enabled&&!this.paused&&!document.hidden){
         const count=briefing||level==='critical'?3:2;
         for(let i=0;i<count;i++){const t=now+.05+i*.32;gain.setValueAtTime(0,t);gain.linearRampToValueAtTime(.045,t+.018);gain.setValueAtTime(.045,t+.12);gain.linearRampToValueAtTime(0,t+.21);}
       }
@@ -205,7 +209,7 @@ export class SpaceAudio {
   }
   jump(drive: number, charge: number, paused: boolean) {
     if (!this.ctx || this.ctx.state === 'closed' || !this.jumpGain) return;
-    if (paused) drive = charge = 0;
+    if (paused||this.descent.phase!=='idle') drive = charge = 0;
     if (Math.abs(drive - this.lastDrive) < .01 && Math.abs(charge - this.lastCharge) < .01 && !(drive === 0 && this.lastDrive !== 0)) return;
     this.lastDrive = drive; this.lastCharge = charge; const t = this.ctx.currentTime;
     this.jumpGain.gain.cancelScheduledValues(t); this.jumpGain.gain.setTargetAtTime(.018 * charge + .055 * drive, t, .15);

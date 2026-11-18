@@ -218,12 +218,12 @@ test('star systems have stable identities, varied populations and bounded footpr
 
 const singularity = await import('../src/singularity.ts');
 test('singularity alerts escalate by real distance and release with hysteresis',()=>{
- const {readSingularity,CLEAR_READING}=singularity;
- const caution=readSingularity('fixed-system',5300);assert.equal(caution.level,'caution');
- assert.equal(readSingularity('fixed-system',5550,caution).level,'caution');assert.equal(readSingularity('fixed-system',5800,caution).level,'clear');
- const critical=readSingularity('fixed-system',3000,caution);assert.equal(critical.level,'critical');
- assert.equal(readSingularity('fixed-system',3250,critical).level,'critical');assert.equal(readSingularity('fixed-system',3450,critical).level,'caution');
- assert.equal(readSingularity('other-system',5500,critical).level,'clear');assert.deepEqual(readSingularity('',Infinity),CLEAR_READING);
+ const {readSingularity,CLEAR_READING,CAUTION_DISTANCE:C,CRITICAL_DISTANCE:R}=singularity;
+ const caution=readSingularity('fixed-system',C-100);assert.equal(caution.level,'caution');
+ assert.equal(readSingularity('fixed-system',C+150,caution).level,'caution');assert.equal(readSingularity('fixed-system',C+400,caution).level,'clear');
+ const critical=readSingularity('fixed-system',R-100,caution);assert.equal(critical.level,'critical');
+ assert.equal(readSingularity('fixed-system',R+150,critical).level,'critical');assert.equal(readSingularity('fixed-system',R+350,critical).level,'caution');
+ assert.equal(readSingularity('other-system',C+100,critical).level,'clear');assert.deepEqual(readSingularity('',Infinity),CLEAR_READING);
  assert.equal(readSingularity('fixed-system',-10).intensity,1);
 });
 test('transit exclusion detects high-speed crossings without blocking tangential escape',()=>{

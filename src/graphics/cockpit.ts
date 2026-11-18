@@ -6,7 +6,7 @@ import type {NavigationInfo} from './universe';
 
 // Model metres are scaled to the existing ship; its pilot anchor maps to camera (0,0,0).
 export const COCKPIT_SCALE=1.5;
-export type CockpitTelemetry={speed:number;thrust:number;heading:number;navigation:NavigationInfo;combat?:CombatReading;contacts:{x:number;y:number;kind:number}[];target?:{name:string;distance:number};searchlight:boolean;paused:boolean};
+export type CockpitTelemetry={speed:number;thrust:number;heading:number;navigation:NavigationInfo;combat?:CombatReading;contacts:{x:number;y:number;kind:number}[];target?:{name:string;distance:number};searchlight:boolean;paused:boolean;capture?:number};
 type Display={texture:T.CanvasTexture;canvas:HTMLCanvasElement;ctx:CanvasRenderingContext2D;base:HTMLCanvasElement;kind:string};
 
 /** Ship-space cockpit: async self-contained GLB, shared environment, bounded-rate live displays. */
@@ -84,6 +84,7 @@ export function createCockpit(ship:T.Group){
    blank(185,290,150,48);text(kind==='Gauge PWR'?'SHLD':'HEAT',200,326,30);
    blank(195,340,125,45);text(String(Math.round(kind==='Gauge PWR'?(t.combat?.shield??100):(t.combat?.heat??0)*100)),222,371,26);
   }
+  if(t.capture!==undefined&&t.capture>.03){const k=t.capture;c.fillStyle=`rgba(0,0,0,${.25+k*.65})`;for(let i=0;i<5;i++)c.fillRect(0,(i*.19+k*.13)*d.canvas.height,d.canvas.width,8+k*45);c.fillStyle='#c78655';c.font='18px monospace';c.fillText(k>.65?'SIGNAL LOST / TIDAL SHEAR':'CAUTION / STRUCTURAL STRAIN',30,52);}
   c.restore();d.texture.needsUpdate=true;
  }
  return{group:cabin,ready,

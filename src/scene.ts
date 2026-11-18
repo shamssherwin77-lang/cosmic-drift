@@ -24,7 +24,9 @@ import { createCinema } from './graphics/cinema';
 import {PlanetFlight,NO_PLANET,surfaceSpeedLimit,altitudeAt,PLANET_RADIUS,type PlanetReading} from './planet';
 import {createLandingPlanet} from './graphics/landing-planet';
 import { createBlackHole } from './graphics/black-hole';
-import { CLEAR_READING, readSingularity, protectedEndpoint, EXCLUSION_DISTANCE, type SingularityReading } from './singularity';
+import {SingularityFall,horizonEntry,type FallReading} from './singularity-fall';
+import {createFallVisuals} from './graphics/singularity-fall';
+import { CLEAR_READING, readSingularity, HORIZON_RADIUS, LAST_ESCAPE_DISTANCE, type SingularityReading } from './singularity';
 import type { JumpTarget, NavigationInfo } from './graphics/universe';
 import { lightingProfiles, qualityProfiles, regions, type GraphicsSettings } from './graphics/config';
 export { regions } from './graphics/config';
@@ -32,7 +34,7 @@ export { regions } from './graphics/config';
 export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; pilotHeight?:number; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
 export type CombatTarget={id:number;kind:number;x:number;y:number;hull:number;shield:number;cloak:boolean;warning:boolean};
-export type JumpEvents={onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
+export type JumpEvents={onFall?:(reading:FallReading)=>void;onFallControls?:(actions:{recover:()=>void})=>void;onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
 export function createScene(el: HTMLDivElement, get: () => Flight, controller: FlightController, joystick: HTMLElement, events:JumpEvents = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
   renderer.setClearColor('#040710');
@@ -45,8 +47,8 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const ship = new T.Group(); ship.position.z = 5; ship.add(camera); scene.add(ship);
   const suspension=new ShipFloat(),vesselBaseline=ship.position.clone(),lastAttitude=controller.shipQuaternion.clone();
   const jump=events.jump ?? new LightJump();let lastPhase=jump.phase;
-  const runtime={...get()};
-  const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||jump.busy||!!runtime.hazardHold||surface.busy||!!runtime.challenge&&combat.dead;return runtime;};
+  const runtime={...get()},fall=new SingularityFall();
+  const readInput=()=>{Object.assign(runtime,get());runtime.blocked=runtime.blocked||fall.active||jump.busy||!!runtime.hazardHold||surface.busy||!!runtime.challenge&&combat.dead;return runtime;};
   const cinema=createCinema(renderer,scene,ship);
   const searchlight=createSearchlight(ship);
   const space = createSpace(scene),terrain=createLandingPlanet(scene),surface=new PlanetFlight();let planetReading:PlanetReading=NO_PLANET,nextPlanetUpdate=0,surfaceTime=0;
@@ -58,9 +60,19 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const arrivalRotation=new T.Euler(0,0,0,'YXZ');
   const jumpEffect=createJumpEffect(ship),cabinTint=new T.Color(),jumpWhite=new T.Color('#bad9f3');
   const cockpit = createCockpit(ship), hull = createHull(ship);
+  const fallVisual=createFallVisuals(cockpit.group,hull.group,singularity.target.texture),fallAttitude=new T.Quaternion(),fallLook=new T.Quaternion(),fallInward=new T.Quaternion(),fallAxis=new T.Vector3(),neutralLook=new T.Quaternion();let lastFallPhase='idle',nextFallUpdate=0;
+  events.onFallControls?.({recover:()=>{
+    if(!fall.ended)return;
+    controller.position.fromArray(fall.safePosition());fallAxis.fromArray(fall.outward);
+    controller.shipQuaternion.setFromUnitVectors(new T.Vector3(0,0,-1),fallAxis);
+    controller.yaw=Math.atan2(-fallAxis.x,-fallAxis.z);controller.pitch=Math.asin(T.MathUtils.clamp(fallAxis.y,-1,1));
+    controller.lookQuaternion.identity();controller.lookYaw=controller.lookPitch=controller.lookTargetYaw=controller.lookTargetPitch=0;
+    controller.syncAttitude();controller.reset(true);controller.speed=0;fire.firing=false;fire.blinkRequested=false;
+    fall.reset();fallVisual.reset();suspension.reset();lastFallPhase='idle';nextNavigation=0;events.onFall?.(fall.reading());
+  }});
   const combat=new CombatSimulation(),combatGraphics=createCombatGraphics(scene),fire=get().combatInput??{weapon:0,firing:false,blinkRequested:false};let lastCombat=-1,combatWasJumping=false;
   events.onCombatControls?.({retry:()=>{combat.reset();controller.reset(true);},dismissVictory:()=>combat.dismissVictory()});combat.onEvent=e=>events.onCombatSound?.(e);
-  const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||jump.busy||!!s.hazardHold||surface.busy,paused:s.paused};},fire);
+  const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||fall.active||jump.busy||!!s.hazardHold||surface.busy,paused:s.paused};},fire);
   const combatPoint=new T.Vector3(),combatStart=new T.Vector3(),combatEnd=new T.Vector3(),combatVelocity=new T.Vector3(),relicInverse=RELIC_ROTATION.clone().invert();
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput,events.onSpeed);
   const clock = new T.Clock(), budget = new FrameBudget();
@@ -111,7 +123,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
       space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
     const renderRegion=jump.busy&&jump.committed?jump.destination:s.region;
     const visualEnergy=jump.energy*(s.reduced?.16:s.mode==='Meditation'?.55:1);
-    input.sync();combatInput.sync();readInput();runtime.paused=s.paused||!s.started||!!s.hazardHold||surface.busy&&!jump.busy||!!s.challenge&&s.blocked;
+    input.sync();combatInput.sync();readInput();runtime.paused=fall.active||s.paused||!s.started||!!s.hazardHold||surface.busy&&!jump.busy||!!s.challenge&&s.blocked;
     const landingWorld=space.planetAt(controller.position);
     if(landingWorld&&!jump.busy)runtime.speed=Math.min(runtime.speed,surfaceSpeedLimit(altitudeAt(controller.position,landingWorld.center)));
     if(jump.busy){runtime.mode='Autopilot';runtime.motion=0;runtime.started=true;runtime.speed=jump.committed&&(jumpTarget?.blackHole||jumpTarget?.landable||jumpTarget?.relic)?0:s.speed+Math.pow(jump.energy,2)*(s.reduced?100:360);}
@@ -131,10 +143,26 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     terrain.update(space.planetAt(controller.position),controller.position,surfaceTime,jump.veil);
     const hazard=space.singularityAt(controller.position);
     if(hazard&&!jump.busy&&s.started&&!runtime.paused){
-      // A soft exclusion shell keeps exploration reversible. Assist holds a closer orbit.
-      const limit=s.transitAssist?EXCLUSION_DISTANCE:EXCLUSION_DISTANCE*1.65;
-      if(!s.transitAssist&&hazard.distance<3100){const pull=Math.min(80,2e8/Math.max(1,hazard.distance*hazard.distance));controller.position.addScaledVector(new T.Vector3().subVectors(hazard.position,controller.position).normalize(),pull*dt);}
-      controller.position.fromArray(protectedEndpoint(previousPosition.toArray(),controller.position.toArray(),hazard.position.toArray(),limit));
+      // Stabilization only nudges outward. Deliberate inward thrust can cross the real horizon.
+      fallAxis.subVectors(controller.position,hazard.position).normalize();
+      if(hazard.distance<LAST_ESCAPE_DISTANCE){const strength=s.transitAssist?170:-Math.min(110,1.6e8/Math.max(1,hazard.distance*hazard.distance));controller.position.addScaledVector(fallAxis,strength*dt);}
+      if(fall.enter(previousPosition.toArray(),controller.position.toArray(),hazard.position.toArray())){
+        fallAttitude.copy(controller.shipQuaternion);fallLook.copy(controller.lookQuaternion);
+        fallInward.setFromUnitVectors(new T.Vector3(0,0,-1),fallAxis.fromArray(fall.outward).negate());
+        controller.reset(true);controller.speed=0;fire.firing=false;fire.blinkRequested=false;suspension.reset();
+        if(document.pointerLockElement)document.exitPointerLock();events.onFall?.(fall.reading());
+      }
+    }
+    // Like Jump, a slow visible frame advances a bounded amount; hidden tabs return above.
+    fall.advance(graphicsDt,s.paused||!!s.hazardHold||!s.started);
+    const fallReading=fall.reading();
+    if(fall.active){
+      const t=T.MathUtils.smoothstep(fallReading.elapsed,0,10.5);
+      controller.position.fromArray(fall.center).addScaledVector(fallAxis.fromArray(fall.outward),HORIZON_RADIUS*(1-.72*t));
+      controller.shipQuaternion.copy(fallAttitude).slerp(fallInward,T.MathUtils.smoothstep(fallReading.elapsed,0,3));
+      controller.lookQuaternion.copy(fallLook).slerp(neutralLook,T.MathUtils.smoothstep(fallReading.elapsed,0,2.8));
+      controller.speed=0;controller.velocity.set(0,0,0);fire.firing=false;
+      if(lastFallPhase!==fall.phase||performance.now()>=nextFallUpdate){lastFallPhase=fall.phase;nextFallUpdate=performance.now()+100;events.onFall?.(fallReading);}
     }
     const nextReading=hazard&&!jump.busy&&s.started?readSingularity(hazard.id,hazard.position.distanceTo(controller.position),reading):CLEAR_READING;
     if(nextReading.id!==reading.id||nextReading.level!==reading.level||time>=nextHazardUpdate&&(Math.abs(nextReading.distance-reading.distance)>20||Math.abs(nextReading.intensity-reading.intensity)>.015)){reading=nextReading;nextHazardUpdate=time+.12;events.onSingularity?.(reading);}
@@ -146,17 +174,17 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
       const steps=Math.max(1,Math.min(48,Math.ceil(a.distanceTo(b)/55)));
       if(landingWorld&&Math.min(a.distanceTo(landingWorld.center),b.distanceTo(landingWorld.center))<5000){for(let i=0;i<=steps;i++){combatPoint.copy(a).lerp(b,i/steps);if(altitudeAt(combatPoint,landingWorld.center)<3)return true;}}
       if(relicWorld){combatStart.copy(a).sub(relicWorld.center).applyQuaternion(relicInverse);combatEnd.copy(b).sub(relicWorld.center).applyQuaternion(relicInverse);if(Math.min(combatStart.length(),combatEnd.length())<30000){for(let i=0;i<=steps;i++){combatPoint.copy(combatStart).lerp(combatEnd,i/steps);if(relicDistance(combatPoint)<2)return true;}}}
-      if(hazard&&(a.distanceTo(hazard.position)<EXCLUSION_DISTANCE||b.distanceTo(hazard.position)<EXCLUSION_DISTANCE))return true;
+      if(hazard&&horizonEntry(a.toArray(),b.toArray(),hazard.position.toArray())!==null)return true;
       return false;
     };
     // Desktop uses mouse-owned flight; mobile retains the existing joystick and cruise slider.
     const pilotVelocity=controller.velocity.lengthSq()>0?combatVelocity.copy(controller.velocity):combatVelocity.set(0,0,-controller.speed).applyQuaternion(controller.shipQuaternion);
-    if(fire.blinkRequested){fire.blinkRequested=false;if(s.challenge&&!s.paused&&!s.blocked&&!jump.busy&&!surface.busy&&combat.blink({position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},(a,b)=>{
+    if(fire.blinkRequested){fire.blinkRequested=false;if(s.challenge&&!fall.active&&!s.paused&&!s.blocked&&!jump.busy&&!surface.busy&&combat.blink({position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},(a,b)=>{
       if(blockedShot(a,b))return true;let inside=false;const point=b.clone().sub(previousPosition),sphere=new T.Sphere();
       scene.traverseVisible(o=>{if(!(o instanceof T.Mesh)||!['planet','star','moon','rocky-body'].includes(o.userData.kind))return;if(!o.geometry.boundingSphere)o.geometry.computeBoundingSphere();o.updateWorldMatrix(true,false);sphere.copy(o.geometry.boundingSphere!).applyMatrix4(o.matrixWorld);if(point.distanceTo(sphere.center)<sphere.radius+25)inside=true;});return inside;
     })){relic.update(relicWorld,controller.position,surfaceTime,jump.veil);terrain.update(landingWorld,controller.position,surfaceTime,jump.veil);singularity.update(hazard?.position??null,controller.position,time,jump.veil);}}
-    combat.step(delta,{position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},!!s.challenge&&s.started,s.paused||s.blocked||jump.busy||!!s.hazardHold||surface.busy,blockedShot);
-    combatGraphics.update(combat,controller.position,!!s.challenge&&s.started&&!jump.busy,camera);
+    combat.step(delta,{position:controller.position,velocity:pilotVelocity,rotation:controller.shipQuaternion,weapon:fire.weapon,firing:fire.firing},!!s.challenge&&s.started,fall.active||s.paused||s.blocked||jump.busy||!!s.hazardHold||surface.busy,blockedShot);
+    combatGraphics.update(combat,controller.position,!!s.challenge&&s.started&&!fall.active&&!jump.busy,camera);
     const combatNow=performance.now();
     if(s.challenge&&combatNow>=lastCombat+100){lastCombat=combatNow;camera.updateMatrixWorld();const targets:CombatTarget[]=[];
       for(const e of combat.enemies){if(!e.active)continue;const v=e.position.clone().sub(controller.position),front=v.clone().applyQuaternion(camera.getWorldQuaternion(new T.Quaternion()).invert()).z<0;v.project(camera);targets.push({id:e.id,kind:e.kind,x:T.MathUtils.clamp(front?v.x:-v.x,-.9,.9),y:T.MathUtils.clamp(front?v.y:-v.y,-.72,.72),hull:e.hull/ENEMY_TYPES[e.kind].hull,shield:e.shield/Math.max(1,ENEMY_TYPES[e.kind].shield),cloak:e.cloak,warning:e.cooldown<.8&&!e.cloak&&combat.trackingLost<=0});}
@@ -177,7 +205,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
     if(time>=nextNavigation){cockpitNavigation=space.navigation(controller.position,controller.shipQuaternion);events.onNavigation?.(cockpitNavigation);nextNavigation=time+.5;}
     const turning=lastAttitude.angleTo(controller.shipQuaternion)/Math.max(.001,dt);
     const activity=Math.max(controller.keys.size||controller.touchSteering?1:0,Math.min(1,turning*5),Math.min(1,controller.speed/Math.max(1,s.speed)));
-    suspension.update(dt,{enabled:!!s.freeFlight&&s.started&&!jump.busy&&!surface.busy,paused:s.paused||!!s.hazardHold||s.blocked&&!jump.busy,reduced:s.reduced,motion:s.motion,activity});
+    suspension.update(dt,{enabled:!!s.freeFlight&&s.started&&!fall.active&&!jump.busy&&!surface.busy,paused:s.paused||!!s.hazardHold||s.blocked&&!jump.busy,reduced:s.reduced,motion:s.motion,activity});
     if(surface.status==='landed')suspension.reset();
     suspension.apply(ship,controller.shipQuaternion,vesselBaseline);lastAttitude.copy(controller.shipQuaternion);
     suspension.applyCamera(camera,controller.lookQuaternion);
@@ -191,14 +219,16 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
       nextInstruments=instrumentTime+.25;instrumentInverse.copy(controller.shipQuaternion).invert();
       const contacts:{x:number;y:number;kind:number}[]=[];let target:{name:string;distance:number}|undefined;
       if(s.challenge)for(const enemy of combat.enemies){if(!enemy.active)continue;instrumentPoint.copy(enemy.position).sub(controller.position);const distance=instrumentPoint.length();if(!target||distance<target.distance)target={name:ENEMY_TYPES[enemy.kind].name,distance};instrumentPoint.applyQuaternion(instrumentInverse);const r=Math.max(1800,Math.hypot(instrumentPoint.x,instrumentPoint.z));contacts.push({x:instrumentPoint.x/r,y:instrumentPoint.z/r,kind:enemy.kind});}
-      cockpit.update(cabinTint,lighting.cabin*(1+jump.charge*.12),s.mode==='Meditation',s.cockpit,time,{speed:controller.speed,thrust:s.speed,heading:T.MathUtils.euclideanModulo(T.MathUtils.radToDeg(controller.yaw),360),navigation:cockpitNavigation,combat:s.challenge?combat.reading():undefined,contacts,target,searchlight:!!s.searchlight,paused:s.paused});
+      cockpit.update(cabinTint,lighting.cabin*(1+jump.charge*.12),s.mode==='Meditation',s.cockpit,time,{speed:controller.speed,thrust:s.speed,heading:T.MathUtils.euclideanModulo(T.MathUtils.radToDeg(controller.yaw),360),navigation:cockpitNavigation,combat:s.challenge?combat.reading():undefined,contacts,target,searchlight:!!s.searchlight,paused:s.paused,capture:fall.active?fallReading.strain:undefined});
     }else cockpit.update(cabinTint, lighting.cabin*(1+jump.charge*.12), s.mode === 'Meditation', s.cockpit,time);cinema.update(s.cockpit,s.mode==='Meditation');
+    fallVisual.apply(fallReading,ship,camera,s.reduced,s.cockpit);
     jumpEffect.update(s.paused?0:Math.min(delta,.1),visualEnergy,space.tint);
     if (bloomPass) bloomPass.strength = s.bloom * (s.mode === 'Meditation' ? .45 : .8+visualEnergy*.2);
     // A paused scene has no flight animation; keep transitions responsive at 15 FPS.
     pausedRenderTime += delta;
-    if (s.paused && pausedRenderTime < 1 / 15) return;
+    if ((s.paused||fall.ended) && pausedRenderTime < 1 / 15) return;
     pausedRenderTime = 0;
+    if(fall.active){fallVisual.render(renderer,scene,camera);return;}
     space.renderAtmosphere(renderer, camera);
     singularity.capture(renderer,camera,ship);
     if (composer) composer.render(); else renderer.render(scene, camera);
@@ -206,7 +236,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   animate();
   return () => {
     disposed = true; cancelAnimationFrame(frame); input.dispose();combatInput.dispose();combatGraphics.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
-    events.onAudio?.(0,0,true);disposeComposer(); cockpit.dispose(); hull.dispose();terrain.dispose();relic.dispose(); singularity.dispose(); space.dispose();cinema.dispose();searchlight.dispose();
+    events.onAudio?.(0,0,true);disposeComposer();fallVisual.dispose(); cockpit.dispose(); hull.dispose();terrain.dispose();relic.dispose(); singularity.dispose(); space.dispose();cinema.dispose();searchlight.dispose();
     const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
     scene.traverse(object => {
       if (object instanceof T.Mesh || object instanceof T.Points || object instanceof T.Line) {

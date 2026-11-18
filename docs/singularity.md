@@ -5,12 +5,12 @@ supermassive black hole. Matching palette names or procedural seeds do not creat
 additional hosts. Its star and corona are hidden; other systems retain theirs.
 The 7,500 u domain establishes entry, not a rendering cutoff. Once entered,
 the host remains active across streamed-sector boundaries until a safe Jump or
-physical departure beyond 34,000 u. Its image and light fade continuously between
-24,000 and 32,000 u. Proximity alerts still follow their own distance thresholds.
+physical departure beyond 68,000 u. Its image and light fade continuously between
+48,000 and 64,000 u. Proximity alerts still follow their own distance thresholds.
 The hole is absent after a Jump to another nebula, even if its host is still in the
 streamed neighborhood. Safe Jumps land outside that domain; every Jump into the
 unique host requires confirmation, including return visits.
-Coordinates, disk orientation and exclusion distances do not change with quality.
+Coordinates, disk orientation and horizon distance do not change with quality.
 
 ## Flight and consent
 
@@ -24,7 +24,8 @@ The scene exposes a synchronous Jump planner to the UI. Before entering a hazard
 system, an accessible, focus-contained advisory stops flight, suppresses normal
 sound layers and offers Continue or Cancel. No Jump clock or relocation starts
 before confirmation. A confirmed Jump retains the planned coordinates, arrives
-6,900 game units from the singularity and points the vessel away from it. There is
+26,000 game units from the singularity and points the vessel away from it. The arrival chooses a deterministic open-space point on that same distance shell,
+avoiding nearby stars, the landable world and ancient hull. There is
 no initial direction arrow revealing its location. Hazardous arrivals hold translation
 through the remaining transition, reset actual speed, and select a gentle 18 u/s
 cruise target. The pilot can raise the existing slider afterward. This prevents
@@ -32,13 +33,38 @@ a retained high cruise speed from carrying the ship outside the host before
 the arrival animation finishes. Turning the vessel or looking
 through the canopy reveals the disk in the distance.
 
-Distance alerts start at 5,400 u (amber) and 3,100 u (red), with hysteresis on exit.
-Transit control cancels the modeled radial pull and permits a closer approach.
-Steering, throttle, free-look and outward flight remain available. A swept segment
-exclusion shell prevents a high-speed frame from passing through the horizon;
-without assistance its radius is 1,254 u, with assistance 760 u. There is no forced
-death, portal or invented interior beyond the event horizon. These are compressed
-gameplay distances, not a relativistic orbital simulation.
+Distance alerts start at 14,500 u (amber) and 7,600 u (red), with hysteresis on exit.
+At 4,200 u the warning explicitly says to turn back and explains that crossing the
+horizon is fatal. Transit control provides a bounded outward nudge, not an
+invincible barrier. Steering, throttle, free-look and outward flight remain
+available until the actual horizon at 1,600 u. Deliberate inward thrust can
+overcome stabilization. A swept segment/sphere test catches crossings between
+frames, including outside-to-outside crossings. Combat blink cannot cross it.
+These are compressed gameplay distances, not a relativistic orbital simulation.
+
+## Irreversible descent
+
+Crossing starts a 10.5-second cinematic sequence. The cabin initially remains
+intact; increasing tidal strain stretches the actual cockpit and hull, degrades
+instrument displays, then reveals a small fixed set of hull ribbons before a
+blackout. The world capture becomes a warped light ring behind the vessel. This
+is a cinematic interpretation, not an observation of a black-hole interior.
+Flight, weapons, blink and Jump are disabled during capture; the combat simulation
+is suspended. Music stops; the existing synthesized anomaly changes into an
+increasing strain sound, then all audio falls silent. Master mute and pause still
+apply. A visible Pause/Resume action is available throughout the sequence, including
+when the ordinary HUD was hidden. Hidden tabs do not advance or catch up the fall.
+
+The final dialog offers Return to safe flight (20,000 u from the same fixed center,
+facing outward, zero selected/actual thrust, same world and journey progress) or
+Start a new journey (fresh game state and menu without replaying the intro).
+Reduced motion reduces camera deformation, removes shake and reduces twisting.
+The interior pass bypasses bloom and uses a fixed-cost shader and 38 simple ribbons
+at every quality. Original cockpit/hull transforms are restored on recovery.
+
+The extended visual range does not claim neighboring systems: a nearby ordinary
+system retains its navigation name. Safe Jumps clear the host visit, so sharing a
+nebula palette cannot create another black hole or carry one into a safe visit.
 
 ## Graphics
 

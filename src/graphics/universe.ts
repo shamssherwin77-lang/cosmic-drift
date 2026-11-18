@@ -4,7 +4,7 @@ import {RELIC_SECTOR,RELIC_KEY,RELIC_NAME,RELIC_REGION,RELIC_RADIUS,RELIC_FADE_S
 import { createBodies } from './bodies';
 import { LANDING_KEY,LANDING_SECTOR,LANDING_NORMAL,PLANET_NAME,PLANET_RADIUS,PLANET_FADE_START,PLANET_FADE_END,type LandingWorld } from '../planet';
 import { systemLayout } from './system-layout';
-import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_EXIT, SINGULARITY_FADE_START, SINGULARITY_FADE_END, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
+import { SINGULARITY_KEY, SINGULARITY_DOMAIN, SINGULARITY_DISCOVERY_DISTANCE, SINGULARITY_EXIT, SINGULARITY_FADE_START, SINGULARITY_FADE_END, SINGULARITY_SECTOR, ARRIVAL_DISTANCE } from '../singularity';
 export type NavigationInfo = { current: string; next: string; distance: number; region: number; nextHazard?: boolean };
 export type JumpTarget = { position: T.Vector3; direction: T.Vector3; region: number; name: string; key: string; blackHole: boolean; landable:boolean; relic?:boolean };
 
@@ -93,7 +93,7 @@ export function createUniverse(scene: T.Scene) {
     let nearest=slots[0].sector!,nearestDistance=Infinity;
     for(const slot of slots){if(relicVisit&&!slot.sector!.relic&&slot.sector!.starWorld.distanceTo(relicWorld.center)<RELIC_RADIUS+1200)continue;const d=slot.sector!.starWorld.distanceTo(position);if(d<nearestDistance){nearest=slot.sector!;nearestDistance=d;}}
     const host=hostVisit?singularityHost:slots.find(s=>s.sector?.blackHole)?.sector;
-    if(host&&host.starWorld.distanceTo(position)<SINGULARITY_DOMAIN){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
+    if(hostVisit&&host&&(nearest.key===host.key||nearestDistance>5200)&&host.starWorld.distanceTo(position)<SINGULARITY_DOMAIN){nearest=host;nearestDistance=host.starWorld.distanceTo(position);}
     if(planetVisit&&position.distanceTo(landingWorld.center)<PLANET_RADIUS+1600){nearest=planetHost;nearestDistance=position.distanceTo(landingWorld.center);}
     return{nearest,nearestDistance};
   };
@@ -113,7 +113,7 @@ export function createUniverse(scene: T.Scene) {
     update(dt: number, time: number, _region: number, position: T.Vector3) {
       assign(position); offset.copy(position).sub(markerOrigin);relicRelative.copy(relicWorld.center).sub(position);
       const hostDistance=position.distanceTo(singularityHost.starWorld);
-      if(hostDistance<SINGULARITY_DOMAIN)hostVisit=true;else if(hostDistance>=SINGULARITY_EXIT)hostVisit=false;
+      if(hostDistance<SINGULARITY_DISCOVERY_DISTANCE&&!planetVisit&&!relicVisit)hostVisit=true;else if(hostDistance>=SINGULARITY_EXIT)hostVisit=false;
       for (const slot of slots) {
         const sector = slot.sector!;
         slot.bodies.update(dt, time, sector.region, position);
@@ -140,7 +140,7 @@ export function createUniverse(scene: T.Scene) {
     singularityAt(position:T.Vector3){
       const {nearest,nearestDistance}=location(position),distance=position.distanceTo(singularityHost.starWorld);
       if(hostVisit&&distance<SINGULARITY_EXIT)return{id:singularityHost.key,position:singularityHost.starWorld,distance};
-      return nearest.blackHole&&nearestDistance<SINGULARITY_DOMAIN?{id:nearest.key,position:nearest.starWorld,distance:nearestDistance}:null;
+      return nearest.blackHole&&nearestDistance<SINGULARITY_DISCOVERY_DISTANCE?{id:nearest.key,position:nearest.starWorld,distance:nearestDistance}:null;
     },
     lightAt(position:T.Vector3){
       let nearest=slots[0].sector!,distance=Infinity;
@@ -151,9 +151,22 @@ export function createUniverse(scene: T.Scene) {
     jumpTarget(position:T.Vector3,heading:T.Quaternion):JumpTarget{
       const {target}=destination(position,heading),approach=target.starWorld.clone().sub(position).normalize();
       const blackHole=target.blackHole,landable=target.landable,relic=target.relic,arrival=target.starWorld.clone().addScaledVector(approach,blackHole?-ARRIVAL_DISTANCE:-4300);
+      if(blackHole){
+        // A distant arrival must be open space, not inside an unrelated neighboring system.
+        // Deterministic candidates preserve the horizon distance and face away on arrival.
+        const candidate=arrival.clone(),best=arrival.clone();let bestClearance=-Infinity;
+        for(let i=0;i<49;i++){
+          if(i){const y=1-2*(i-.5)/48,r=Math.sqrt(1-y*y),angle=i*2.399963229728653;candidate.copy(target.starWorld).addScaledVector(new T.Vector3(Math.cos(angle)*r,y,Math.sin(angle)*r),ARRIVAL_DISTANCE);}
+          let clearance=Math.min(candidate.distanceTo(landingWorld.center)-PLANET_RADIUS-4200,candidate.distanceTo(relicWorld.center)-RELIC_RADIUS-6000);
+          const [cx,cy,cz]=sectorAt(candidate);
+          for(let x=cx-1;x<=cx+1;x++)for(let y=cy-1;y<=cy+1;y++)for(let z=cz-1;z<=cz+1;z++)clearance=Math.min(clearance,candidate.distanceTo(describeSector(x,y,z).starWorld)-5600);
+          if(clearance>bestClearance){bestClearance=clearance;best.copy(candidate);}if(clearance>=0)break;
+        }
+        arrival.copy(best);approach.copy(target.starWorld).sub(arrival).normalize();
+      }
       // Safe destinations must also land outside the unique host's domain.
       const host=singularityHost;
-      if(!blackHole&&arrival.distanceTo(host.starWorld)<SINGULARITY_DOMAIN+500){
+      if(!blackHole&&arrival.distanceTo(host.starWorld)<SINGULARITY_DISCOVERY_DISTANCE+500){
         arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(host.starWorld).normalize(),4300);
         approach.copy(target.starWorld).sub(arrival).normalize();
       }
@@ -163,8 +176,8 @@ export function createUniverse(scene: T.Scene) {
         const tangent=new T.Vector3().crossVectors(explorationNormal,Math.abs(explorationNormal.y)>.9?new T.Vector3(1,0,0):new T.Vector3(0,1,0)).normalize();
         approach.copy(explorationNormal).multiplyScalar(-Math.cos(T.MathUtils.degToRad(110))).addScaledVector(tangent,Math.sin(T.MathUtils.degToRad(110))).normalize();
       }
-      else if(arrival.distanceTo(landingWorld.center)<PLANET_RADIUS+4200){arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(landingWorld.center).normalize(),4300);approach.copy(target.starWorld).sub(arrival).normalize();}
-      if(!relic&&arrival.distanceTo(relicWorld.center)<RELIC_RADIUS+6000){arrival.copy(relicWorld.center).addScaledVector(target.starWorld.clone().sub(relicWorld.center).normalize(),RELIC_RADIUS+6500);approach.copy(target.starWorld).sub(arrival).normalize();}
+      else if(!blackHole&&arrival.distanceTo(landingWorld.center)<PLANET_RADIUS+4200){arrival.copy(target.starWorld).addScaledVector(target.starWorld.clone().sub(landingWorld.center).normalize(),4300);approach.copy(target.starWorld).sub(arrival).normalize();}
+      if(!relic&&!blackHole&&arrival.distanceTo(relicWorld.center)<RELIC_RADIUS+6000){arrival.copy(relicWorld.center).addScaledVector(target.starWorld.clone().sub(relicWorld.center).normalize(),RELIC_RADIUS+6500);approach.copy(target.starWorld).sub(arrival).normalize();}
       if(relic){arrival.copy(relicEntry);const normal=arrival.clone().sub(relicWorld.center).normalize(),tangent=new T.Vector3().crossVectors(normal,Math.abs(normal.y)>.9?new T.Vector3(1,0,0):new T.Vector3(0,1,0)).normalize();approach.copy(normal).multiplyScalar(-Math.cos(T.MathUtils.degToRad(55))).addScaledVector(tangent,Math.sin(T.MathUtils.degToRad(55))).normalize();}
       return{relic,position:arrival,direction:blackHole?approach.negate():approach,region:target.region,name:target.name,key:target.key,blackHole,landable};
     },
