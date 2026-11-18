@@ -1,3 +1,4 @@
+import {bindPhoneFlight,type PhoneStatus,type PhoneActions} from './phone-flight';
 import {CombatSimulation,type CombatReading,type CombatEvent,ENEMY_TYPES} from './combat/simulation';
 import {createCombatGraphics} from './combat/graphics';
 import {bindCombatInput} from './combat/input';
@@ -34,7 +35,7 @@ export { regions } from './graphics/config';
 export type Flight = ControlSettings & GraphicsSettings & { region: number; cockpit: boolean; pilotHeight?:number; searchlight?: boolean; challenge?:boolean; combatInput?:{weapon:number;firing:boolean;blinkRequested?:boolean}; worldSeed?: number; transitAssist?: boolean; hazardHold?: boolean };
 
 export type CombatTarget={id:number;kind:number;x:number;y:number;hull:number;shield:number;cloak:boolean;warning:boolean};
-export type JumpEvents={onFall?:(reading:FallReading)=>void;onFallControls?:(actions:{recover:()=>void})=>void;onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
+export type JumpEvents={onPhoneStatus?:(status:PhoneStatus)=>void;onPhoneControls?:(actions:PhoneActions)=>void;onFall?:(reading:FallReading)=>void;onFallControls?:(actions:{recover:()=>void})=>void;onCombat?:(reading:CombatReading,targets:CombatTarget[])=>void;onCombatControls?:(actions:{retry:()=>void;dismissVictory:()=>void})=>void;onCombatSound?:(event:CombatEvent)=>void;onRelic?:(reading:RelicReading)=>void;onPlanet?:(reading:PlanetReading)=>void;onSurfaceControls?:(actions:{land:()=>void;takeoff:()=>void;level:()=>void})=>void;onSpeed?:(delta:number)=>void;onPlanner?:(plan:()=>JumpTarget)=>void;getJumpTarget?:()=>JumpTarget|null;onSingularity?:(reading:SingularityReading)=>void;onNavigation?:(info:NavigationInfo)=>void;jump?:LightJump;onPhase?:(phase:JumpPhase)=>void;onDestination?:(region:number,seed:number)=>void;onAudio?:(energy:number,charge:number,paused:boolean)=>void};
 export function createScene(el: HTMLDivElement, get: () => Flight, controller: FlightController, joystick: HTMLElement, events:JumpEvents = {}) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
   renderer.setClearColor('#040710');
@@ -75,6 +76,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   const combatInput=bindCombatInput(renderer.domElement,()=>{const s=get();return{active:!!s.challenge&&s.started&&!combat.dead,blocked:s.blocked||fall.active||jump.busy||!!s.hazardHold||surface.busy,paused:s.paused};},fire);
   const combatPoint=new T.Vector3(),combatStart=new T.Vector3(),combatEnd=new T.Vector3(),combatVelocity=new T.Vector3(),relicInverse=RELIC_ROTATION.clone().invert();
   const input = bindFlightInput(renderer.domElement, joystick, controller, readInput,events.onSpeed);
+  const phone=bindPhoneFlight(controller,readInput,events.onPhoneStatus);events.onPhoneControls?.(phone);
   const clock = new T.Clock(), budget = new FrameBudget();
   let lastQuality = get().quality, lastPerformance = get().performanceMode, lastAdaptive = get().adaptive;
   let nextNavigation=0,nextHazardUpdate=0;
@@ -123,7 +125,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
       space.reseed(jump.seed,jump.destination,controller.position,controller.shipQuaternion);events.onDestination?.(jump.destination,jump.seed);}
     const renderRegion=jump.busy&&jump.committed?jump.destination:s.region;
     const visualEnergy=jump.energy*(s.reduced?.16:s.mode==='Meditation'?.55:1);
-    input.sync();combatInput.sync();readInput();runtime.paused=fall.active||s.paused||!s.started||!!s.hazardHold||surface.busy&&!jump.busy||!!s.challenge&&s.blocked;
+    input.sync();phone.sync();combatInput.sync();readInput();runtime.paused=fall.active||s.paused||!s.started||!!s.hazardHold||surface.busy&&!jump.busy||!!s.challenge&&s.blocked;
     const landingWorld=space.planetAt(controller.position);
     if(landingWorld&&!jump.busy)runtime.speed=Math.min(runtime.speed,surfaceSpeedLimit(altitudeAt(controller.position,landingWorld.center)));
     if(jump.busy){runtime.mode='Autopilot';runtime.motion=0;runtime.started=true;runtime.speed=jump.committed&&(jumpTarget?.blackHole||jumpTarget?.landable||jumpTarget?.relic)?0:s.speed+Math.pow(jump.energy,2)*(s.reduced?100:360);}
@@ -235,7 +237,7 @@ export function createScene(el: HTMLDivElement, get: () => Flight, controller: F
   };
   animate();
   return () => {
-    disposed = true; cancelAnimationFrame(frame); input.dispose();combatInput.dispose();combatGraphics.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
+    disposed = true; cancelAnimationFrame(frame); input.dispose();phone.dispose();combatInput.dispose();combatGraphics.dispose(); window.removeEventListener('resize', configure);document.removeEventListener('visibilitychange',visibility);
     events.onAudio?.(0,0,true);disposeComposer();fallVisual.dispose(); cockpit.dispose(); hull.dispose();terrain.dispose();relic.dispose(); singularity.dispose(); space.dispose();cinema.dispose();searchlight.dispose();
     const geometries = new Set<T.BufferGeometry>(), materials = new Set<T.Material>();
     scene.traverse(object => {

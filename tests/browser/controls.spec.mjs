@@ -121,7 +121,7 @@ test.describe('Android-style landscape touch input', () => {
     h.input.sync();
   });
   await page.mouse.move(300,200);await page.mouse.down();await page.mouse.move(350,200);await page.mouse.up();
-  const expected=-50/720*1.6; // Default desktop viewport is 1280x720.
+  const viewport=page.viewportSize(),expected=-50/Math.max(240,Math.min(viewport.width,viewport.height))*1.6;
   expect((await state(page)).lookYaw).toBeCloseTo(expected,6);
   await page.evaluate(()=>window.harness.input.dispose());
   const before=await state(page);

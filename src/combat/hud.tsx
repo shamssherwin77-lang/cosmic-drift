@@ -1,8 +1,11 @@
+import {useRef,useEffect} from 'react';
 import type {CombatReading} from './simulation';
 import {ENEMY_TYPES,WEAPONS} from './simulation';
 import type {CombatTarget} from '../scene';
 export function CombatHUD({reading:r,targets,input,onRetry,onLeave,onContinue,blocked}:{reading:CombatReading;targets:CombatTarget[];input:{weapon:number;firing:boolean;blinkRequested?:boolean};onContinue:()=>void;onRetry:()=>void;onLeave:()=>void;blocked:boolean}){
- const release=()=>{input.firing=false;};
+ const trigger=useRef<number|null>(null);
+ useEffect(()=>{if(blocked){input.firing=false;trigger.current=null;}return()=>{input.firing=false;};},[blocked]);
+ const release=(e:React.PointerEvent)=>{if(e.pointerId!==trigger.current)return;trigger.current=null;input.firing=false;};
  return <div className={`combat-hud ${r.hit>.1?'under-fire':''}`} aria-label="Combat status" data-hull={Math.ceil(r.hull)} data-shield={Math.ceil(r.shield)} data-kills={r.kills} data-weapon={r.weapon+1} data-blink={Math.ceil(r.blinkCooldown)} data-reload={r.missileReload.toFixed(1)} data-phase={r.phase} data-remaining={r.remaining}>
   <div className="combat-vitals"><span>{r.won?'VICTORY · SECTOR SECURED':`WAVE ${r.wave} / 3`} <b>{r.won?`${r.kills} / 15`:`${r.remaining} / ${r.waveTotal} LEFT`}</b></span><label>SHIELD <meter min="0" max="100" value={r.shield}/><output>{Math.ceil(r.shield)}</output></label><label>HULL <meter min="0" max="100" value={r.hull}/><output>{Math.ceil(r.hull)}</output></label></div>
   {!r.dead&&<><div className={`combat-reticle ${r.locked?'locked':''}`}><span/><small>{r.weapon===3&&r.missileReload>0?`RELOADING ${r.missileReload.toFixed(1)}s`:r.weapon===3?(r.locked?'SEEKER LOCK':'AIM TO LOCK'):r.overheated?'COOLING':WEAPONS[r.weapon].name.toUpperCase()}</small></div>
@@ -15,7 +18,7 @@ export function CombatHUD({reading:r,targets,input,onRetry,onLeave,onContinue,bl
   <button className="combat-blink" aria-label="Emergency blink" aria-keyshortcuts="F" disabled={blocked||r.blinkCooldown>0} onClick={()=>{input.blinkRequested=true;}}><kbd>F</kbd> {r.blinkCooldown>0?`${Math.ceil(r.blinkCooldown)}s`:'BLINK READY'}</button>
   {(r.trackingLost>0||r.blinkBlocked>0)&&<p className="blink-status" role="status">{r.blinkBlocked>0?'BLINK BLOCKED · NO SAFE EXIT':`ENEMY TRACK LOST · ${r.trackingLost.toFixed(1)}s`}</p>}
   {r.blinkFlash>0&&<div className="blink-flash"/>}
-  <button className="combat-trigger" aria-label="Fire weapon" disabled={blocked} onPointerDown={e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);input.firing=true;}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}>FIRE</button>
+  <button className="combat-trigger" aria-label="Fire weapon" disabled={blocked} onPointerDown={e=>{if(trigger.current!==null||e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();trigger.current=e.pointerId;e.currentTarget.setPointerCapture(e.pointerId);input.firing=true;}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}>FIRE</button>
   </>}
   {r.promptReady&&!r.dead&&<section className="combat-defeat postwar-choice" role="dialog" aria-label="Post-war flight"><small>ALL HOSTILES ELIMINATED</small><h2>The sky is yours.</h2><p>Stay in your post-war flight, or switch to peaceful exploration.</p><button onClick={onContinue}>Continue post-war flight</button><button onClick={onLeave}>Switch to peaceful flight</button></section>}
   {r.dead&&<section className="combat-defeat" role="dialog" aria-label="Ship destroyed"><small>SIGNAL LOST</small><h2>Hull breached.</h2><p>{r.kills} hostiles destroyed · Wave {r.wave}</p><button onClick={onRetry}>Retry challenge</button><button onClick={onLeave}>Return to peaceful flight</button></section>}

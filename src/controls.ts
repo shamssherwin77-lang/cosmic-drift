@@ -2,6 +2,8 @@ import { Euler, Quaternion, Vector3 } from 'three';
 
 export type ControlSettings = {
   freeFlight?: boolean;
+  mobileDescent?: boolean;
+  gyroSensitivity?: number;
   mode: string;
   started: boolean;
   paused: boolean;
@@ -53,6 +55,8 @@ export class FlightController {
   touchX = 0;
   touchY = 0;
   touchSteering = false;
+  readonly touchMotion={x:0,z:0,active:false};
+  touchRollLeft=false;touchRollRight=false;
   readonly keys = new Set<string>();
   private elapsed = 0;
   private lastContext = '';
@@ -73,6 +77,15 @@ export class FlightController {
     this.touchX = length ? x / length * magnitude : 0;
     this.touchY = length ? y / length * magnitude : 0;
   }
+  moveTouch(x:number,y:number,active:boolean){
+    const length=Math.hypot(x,y),magnitude=active?clamp((length-.1)/.9,0,1):0;
+    this.touchMotion.x=length?x/length*magnitude:0;this.touchMotion.z=length?y/length*magnitude:0;this.touchMotion.active=active;
+  }
+  recenterSteering(){this.aimQuaternion.copy(this.shipQuaternion);this.lookQuaternion.identity();this.lookYaw=this.lookPitch=this.lookTargetYaw=this.lookTargetPitch=0;}
+  gyro(delta:Quaternion,s:ControlSettings){
+    if(!s.mobileDescent||!s.freeFlight||!s.started||s.paused||s.blocked)return;
+    if(!this.freeActive)this.syncAttitude();this.aimQuaternion.multiply(delta).normalize();
+  }
   look(dx: number, dy: number, touch: boolean, settings: ControlSettings) {
     if (settings.paused || settings.blocked) return;
     const gain = touch ? settings.touchSensitivity : settings.sensitivity;
@@ -83,10 +96,10 @@ export class FlightController {
       (!touch && settings.invertMouseY ? -1 : 1), -1.48, 1.48);
   }
   /** Local quaternion rotations remain well-defined through vertical flight and rolls. */
-  aim(dx:number,dy:number,s:ControlSettings){
+  aim(dx:number,dy:number,s:ControlSettings,touch=false){
     if(!s.freeFlight||!s.started||s.paused||s.blocked)return;
     if(!this.freeActive)this.syncAttitude();
-    const gain=s.sensitivity*(s.reduced?.45:1);
+    const gain=(touch?s.touchSensitivity:s.sensitivity)*(s.reduced?.45:1);
     this.turnQuaternion.setFromEuler(this.euler.set(-clamp(dy,-.2,.2)*gain*1.6*(s.invertMouseY?-1:1),-clamp(dx,-.2,.2)*gain*1.6*(s.invertMouseX?-1:1),0,'YXZ'));
     this.aimQuaternion.multiply(this.turnQuaternion).normalize();
   }
@@ -94,6 +107,7 @@ export class FlightController {
   centerLook() { this.lookTargetYaw = this.lookTargetPitch = 0; }
   reset(stop = false) {
     this.keys.clear();
+    this.moveTouch(0,0,false);this.touchRollLeft=this.touchRollRight=false;
     this.steerTouch(0, 0, false);
     if (stop) {
       this.yawVelocity = this.pitchVelocity = this.rollVelocity = 0;
@@ -157,7 +171,7 @@ export class FlightController {
     const steerX=this.touchSteering?this.touchX:Number(this.keys.has('ArrowRight'))-Number(this.keys.has('ArrowLeft'));
     const steerY=this.touchSteering?this.touchY:Number(this.keys.has('ArrowDown'))-Number(this.keys.has('ArrowUp'));
     if(steerX||steerY){this.turnQuaternion.setFromEuler(this.euler.set(-steerY*.3*calm*dt,-steerX*.4*calm*dt,0,'YXZ'));this.aimQuaternion.multiply(this.turnQuaternion).normalize();}
-    const rollTarget=(Number(this.keys.has('KeyQ'))-Number(this.keys.has('KeyE')))*.8*calm;
+    const rollTarget=clamp(Number(this.keys.has('KeyQ'))-Number(this.keys.has('KeyE'))+Number(this.touchRollLeft)-Number(this.touchRollRight),-1,1)*.8*calm;
     const rollRate=4,rollFactor=(1-Math.exp(-rollRate*dt))/rollRate;
     const angle=rollTarget*dt+(this.rollVelocity-rollTarget)*rollFactor;
     this.rollVelocity=damp(this.rollVelocity,rollTarget,rollRate,dt);
@@ -167,9 +181,9 @@ export class FlightController {
     this.euler.setFromQuaternion(this.shipQuaternion,'YXZ');this.yaw=this.euler.y;this.pitch=this.euler.x;this.roll=this.euler.z;
     // Keep passenger free-look separate; center smoothly when entering free flight.
     this.lookQuaternion.slerp(this.neutralLook,1-Math.exp(-8*dt));
-    const x=Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA'));
+    const x=Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA'))+this.touchMotion.x;
     const y=Number(this.keys.has('Space'))-Number(this.keys.has('ControlLeft')||this.keys.has('ControlRight'));
-    const z=Number(this.keys.has('KeyS'))-Number(this.keys.has('KeyW'));
+    const z=Number(this.keys.has('KeyS'))-Number(this.keys.has('KeyW'))+this.touchMotion.z;
     this.desiredVelocity.set(x,y,z);const inputLength=this.desiredVelocity.length();
     if(inputLength>1)this.desiredVelocity.divideScalar(inputLength);
     this.desiredVelocity.multiplyScalar(Math.max(0,s.speed)*(s.reduced?.3:1)).applyQuaternion(this.shipQuaternion);
@@ -201,7 +215,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
   };
   const endStick = () => {
     const pointer = stickPointer; stickPointer = null;
-    controller.steerTouch(0, 0, false); showStick(0, 0);
+    controller.steerTouch(0, 0, false);controller.moveTouch(0,0,false); showStick(0, 0);
     if (pointer !== null && joystick.hasPointerCapture(pointer)) joystick.releasePointerCapture(pointer);
   };
   const releaseLock=()=>{if(document.pointerLockElement===canvas)document.exitPointerLock();};
@@ -220,7 +234,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
     if (!available() || (e.pointerType === 'mouse' && !(e.buttons & 1))) { endLook(); return; }
     e.preventDefault();
     const scale = Math.max(240, Math.min(canvas.clientWidth, canvas.clientHeight));
-    if(get().freeFlight&&lookPointer.type==='mouse')controller.aim((e.clientX-lookPointer.x)/scale,(e.clientY-lookPointer.y)/scale,get());
+    if(get().freeFlight&&(lookPointer.type==='mouse'||get().mobileDescent))controller.aim((e.clientX-lookPointer.x)/scale,(e.clientY-lookPointer.y)/scale,get(),lookPointer.type!=='mouse');
     else controller.look((e.clientX - lookPointer.x) / scale, (e.clientY - lookPointer.y) / scale, lookPointer.type !== 'mouse', get());
     lookPointer.x = e.clientX; lookPointer.y = e.clientY;
   }) as EventListener);
@@ -234,7 +248,7 @@ export function bindFlightInput(canvas: HTMLCanvasElement, joystick: HTMLElement
     let x = (e.clientX - rect.left - rect.width / 2) / (rect.width * .35);
     let y = (e.clientY - rect.top - rect.height / 2) / (rect.height * .35);
     const length = Math.max(1, Math.hypot(x, y)); x /= length; y /= length;
-    controller.steerTouch(x, y, true); showStick(x, y);
+    if(get().mobileDescent)controller.moveTouch(x,y,true);else controller.steerTouch(x, y, true); showStick(x, y);
   };
   on(joystick, 'pointerdown', ((e: PointerEvent) => {
     if ((e.pointerType === 'mouse' && e.button !== 0) || stickPointer !== null || !manual()) return;
