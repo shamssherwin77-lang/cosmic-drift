@@ -79,3 +79,18 @@ Avaris and 3/8/13 for the black hole.
 Browser regressions cover host-body/landmark opacity together across streaming
 boundaries, navigation at the next star, return travel, resource bounds, and GPU
 silhouette measurements at 6,000/12,000/24,000 u.
+
+## Atmosphere and High-quality rendering
+
+The atmosphere pass now analytically excludes rays that hit the solid planetary
+sphere. Ground haze remains in the terrain material; the atmospheric volume draws
+only sky and the limb, instead of integrating through the planet's interior.
+This prevents an opaque amber atmosphere disk from covering the rocky surface when
+a post-processing/depth path differs, while retaining the thin halo and the existing
+bloom, terrain detail, LOD, distances and landing behavior.
+
+`tests/browser/planet-atmosphere.spec.mjs` compares inner-disk pixels against bare
+terrain at Low/Medium/High, with normal and maximum bloom. It deliberately removes
+atmospheric depth occlusion to ensure the solid-body mask independently protects the
+surface. It also toggles the real High/Performance rendering pipeline repeatedly.
+The thin limb must remain visible, and terrain detail must survive every case.
