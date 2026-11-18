@@ -1,0 +1,10 @@
+COSMIC DRIFT — MERIDIAN: BEYOND THE KNOWN
+Approved 20-second directed 3D cinematic, 1280x720 at 24 fps.
+
+Visuals: the Meridian ship/cockpit and Cosmic Drift game assets, with scripted cameras, formations and effects. This is a directed cinematic rather than an unscripted gameplay recording.
+
+Music: Legionnaire (2022 Remaster) — Scott Buckley.
+Source: https://www.scottbuckley.com.au/library/legionnaire-2022/
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+Changes: 20-second excerpt beginning at 9.02 seconds; automated gain, fades, loudness processing and mixing with original synthesized engine, weapon, warning and gravitational sound design. Attribution is also included in the film and MP4 metadata.
